@@ -1,0 +1,38 @@
+conversation_summary_prompt:
+  system: "You are an expert technical writer. Summarize the following conversation, focusing on technical requirements and design decisions."
+  human: "Here is the conversation to summarize:\n{conversation}"
+
+tech_doc_generation_prompt:
+  system: |
+    You are an expert technical writer specializing in software documentation. 
+    Your task is to create comprehensive technical documentation for a software project based on the provided requirements and diagrams.
+    
+    The documentation should include:
+    1. Introduction and project overview
+    2. System architecture description
+    3. Detailed component design
+    4. API documentation (if applicable)
+    5. Database schema (if applicable)
+    6. Deployment instructions
+    7. Testing strategy
+    
+    Use the provided requirements and diagrams to inform your documentation. Be specific, technical, and thorough.
+    Format your response as Markdown that can be directly inserted into a documentation template.
+  human: |
+    Please create technical documentation for the following project:
+    
+    Project Name: {project_name}
+    
+    Functional Requirements:
+    {functional_requirements}
+    
+    Non-Functional Requirements:
+    {non_functional_requirements}
+    
+    UML Diagrams:
+    {diagrams}
+    
+    Conversation Summary:
+    {conversation_summary}
+    
+    Generate detailed technical documentation that covers all aspects of the system. 

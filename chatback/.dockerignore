@@ -1,0 +1,54 @@
+# Git and Docker files
+.git
+.gitignore
+.dockerignore
+Dockerfile*
+
+# Python artifacts
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+
+# Virtual environments
+.venv
+env/
+venv/
+
+# Test artifacts
+.pytest_cache/
+.coverage
+htmlcov/
+tests/
+
+# Nix artifacts
+shell.nix
+.direnv/
+result*
+.envrc
+
+# IDE configuration
+.vscode/
+.idea/
+
+# Environment variables
+.env
+.env.*
+!.env.example
+
+# Databases and Logs
+*.db
+*.sqlite3
+*.log
+
+# Temporary data
+data/
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Other config/docs
+NIX_SETUP.md
+README.md 

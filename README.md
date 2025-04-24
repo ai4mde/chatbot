@@ -104,3 +104,7 @@ To set up the project for local development:
     - Log in using the username and password you created in the previous step (e.g., username `test-user` and the password you set).
     - The backend API is accessible at `http://localhost:8000`.
 
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+

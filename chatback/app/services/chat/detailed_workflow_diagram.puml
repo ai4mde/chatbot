@@ -1,0 +1,109 @@
+@startuml Detailed Agent Workflow
+
+skinparam backgroundColor white
+skinparam componentStyle rectangle
+skinparam actorStyle awesome
+skinparam DatabaseBackgroundColor #EEEEFF
+skinparam FolderBackgroundColor #EEFFEE
+skinparam ArrowColor #333333
+skinparam ArrowThickness 1.5
+
+' Define actors and main components
+actor "User" as User
+component "Chat Manager\n(The Architect)" as ChatManager
+
+' Define databases and storage
+database "Redis" as Redis
+database "PostgreSQL" as Postgres
+folder "File System" as FileSystem {
+  folder "Interviews" as InterviewFiles
+  folder "Requirements" as RequirementFiles
+  folder "Diagrams" as DiagramFiles
+  folder "SRS Documents" as SRSDocumentFiles
+}
+
+' Define the workflow phases
+package "Interview Phase" {
+  component "InterviewAgentGraph\n(Agent Smith)" as InterviewAgent
+  file "Interview Questions" as Questions
+  file "Interview Document" as InterviewDoc
+}
+
+package "Modeling Phase" {
+  component "DiagramAgentGraph\n(Agent Jackson)" as DiagramAgent
+  component "UMLConverterAgent" as UMLConverter
+  file "UML Diagrams" as UMLDiagrams
+}
+
+package "Requirements Phase" {
+  component "RequirementsAgentGraph\n(Agent Thompson)" as RequirementsAgent
+  file "Functional Requirements" as FunctionalRequirements
+  file "Non-Functional Requirements" as NonFunctionalRequirements
+}
+
+package "Documentation Phase" {
+  component "SRSDocumentAgent\n(Agent Jones)" as SRSDocumentAgent
+  component "DocumentReviewerAgent" as ReviewerAgent
+  file "SRS Document" as SRSDocument
+}
+
+' Define control components
+component "AgentWorkflow" as Workflow {
+  component "Branch Decision" as Branch #LightBlue
+  component "Merge Results" as Merge #LightBlue
+}
+
+' Define control flags
+note right of Workflow
+  Control Flags:
+  DISABLE_DIAGRAM = False
+  DISABLE_REQUIREMENTS = False
+  DISABLE_SRSDOCUMENT = True
+end note
+
+' Define the workflow connections
+User --> ChatManager : interacts with
+ChatManager --> Workflow : initializes
+ChatManager --> Redis : stores session state
+ChatManager --> Postgres : stores messages
+
+Workflow --> InterviewAgent : starts with
+InterviewAgent --> Questions : loads
+InterviewAgent --> InterviewDoc : generates
+InterviewDoc --> InterviewFiles : saves to
+
+Workflow --> Branch : after interview
+Branch --> DiagramAgent : if not DISABLE_DIAGRAM
+Branch --> RequirementsAgent : if not DISABLE_REQUIREMENTS
+
+DiagramAgent --> UMLConverter : generates diagram descriptions
+UMLConverter --> UMLDiagrams : converts to UML
+UMLDiagrams --> DiagramFiles : saves to
+
+RequirementsAgent --> FunctionalRequirements : extracts
+RequirementsAgent --> NonFunctionalRequirements : extracts
+FunctionalRequirements --> RequirementFiles : saves to
+NonFunctionalRequirements --> RequirementFiles : saves to
+
+DiagramAgent --> Merge : after completion
+RequirementsAgent --> Merge : after completion
+
+Merge --> SRSDocumentAgent : if not DISABLE_SRSDOCUMENT
+SRSDocumentAgent --> ReviewerAgent : for review
+SRSDocumentAgent --> SRSDocument : generates
+SRSDocument --> SRSDocumentFiles : saves to
+
+' Data flow connections
+InterviewDoc ..> RequirementsAgent : provides input
+InterviewDoc ..> DiagramAgent : provides input
+UMLDiagrams ..> SRSDocumentAgent : provides diagrams
+FunctionalRequirements ..> SRSDocumentAgent : provides requirements
+NonFunctionalRequirements ..> SRSDocumentAgent : provides requirements
+
+' Redis connections
+Redis <--> InterviewAgent : stores/retrieves state
+Redis <--> DiagramAgent : stores/retrieves state
+Redis <--> RequirementsAgent : stores/retrieves state
+Redis <--> SRSDocumentAgent : stores/retrieves state
+
+@enduml 

@@ -1,0 +1,117 @@
+@startuml Agent Workflow Sequence
+
+skinparam backgroundColor white
+skinparam SequenceArrowThickness 1.5
+skinparam SequenceGroupBackgroundColor #EEEEEE
+skinparam SequenceGroupBorderColor #999999
+skinparam SequenceBoxBackgroundColor #EEEEFF
+skinparam SequenceBoxBorderColor #9999FF
+skinparam ParticipantBackgroundColor #EEFFEE
+skinparam ParticipantBorderColor #99CC99
+skinparam NoteBackgroundColor #FFFFCC
+skinparam NoteBorderColor #999999
+
+actor User
+participant "ChatManager" as CM
+participant "AgentWorkflow" as AW
+participant "InterviewAgent" as IA
+participant "Branch" as BR
+participant "DiagramAgent" as DA
+participant "RequirementsAgent" as RA
+participant "Merge" as MG
+participant "SRSDocumentAgent" as SA
+participant "FileSystem" as FS
+database "Redis" as RD
+database "PostgreSQL" as PG
+
+note over BR, MG
+  Control Flags:
+  DISABLE_DIAGRAM = False
+  DISABLE_REQUIREMENTS = False
+  DISABLE_SRSDOCUMENT = True
+end note
+
+== Initialization ==
+
+User -> CM: Send message
+CM -> PG: Store message
+CM -> RD: Initialize session state
+CM -> AW: Initialize workflow
+activate AW
+
+== Interview Phase ==
+
+AW -> IA: Start interview
+activate IA
+IA -> RD: Load interview questions
+IA -> User: Ask questions
+User -> IA: Provide answers
+IA -> FS: Save interview transcript
+IA -> AW: Interview completed
+deactivate IA
+
+== Branching ==
+
+AW -> BR: Branch workflow
+activate BR
+BR -> AW: Determine next steps based on flags
+
+alt DISABLE_DIAGRAM = False
+    BR -> DA: Start diagram generation
+    activate DA
+end
+
+alt DISABLE_REQUIREMENTS = False
+    BR -> RA: Start requirements extraction
+    activate RA
+end
+
+alt All phases disabled
+    BR -> AW: Skip to end
+end
+deactivate BR
+
+== Parallel Processing ==
+
+group Diagram Generation [if not DISABLE_DIAGRAM]
+    DA -> RD: Get interview data
+    DA -> DA: Generate UML descriptions
+    DA -> FS: Save UML diagrams
+    DA -> AW: Diagrams completed
+    deactivate DA
+end
+
+group Requirements Extraction [if not DISABLE_REQUIREMENTS]
+    RA -> RD: Get interview data
+    RA -> RA: Extract requirements
+    RA -> FS: Save requirements
+    RA -> AW: Requirements completed
+    deactivate RA
+end
+
+== Merging ==
+
+AW -> MG: Merge results
+activate MG
+
+alt DISABLE_SRSDOCUMENT = True
+    MG -> AW: Skip document generation
+else DISABLE_SRSDOCUMENT = False
+    MG -> SA: Start document generation
+    activate SA
+    SA -> RD: Get diagrams and requirements
+    SA -> SA: Generate SRS document
+    SA -> FS: Save SRS document
+    SA -> AW: Document completed
+    deactivate SA
+end
+deactivate MG
+
+== Completion ==
+
+AW -> AW: Prepare final results
+AW -> CM: Return results
+deactivate AW
+CM -> User: Display results
+
+@enduml 

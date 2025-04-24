@@ -1,0 +1,29 @@
+---
+id: {{ id }}
+title: {{ title }}
+description: {{ description }}
+date: {{ date }}
+---
+
+# Software Requirements Specification for {{ title }}
+
+**Version:** {{ version }}
+**Date:** {{ date }}
+
+---
+
+{% for section in sections %}
+{{ section.content }}
+
+---
+{% endfor %}
+
+## 7. Appendix
+
+{% if diagram_content %}
+### 7.1 UML Diagrams
+
+{{ diagram_content }}
+{% else %}
+_(No additional appendices.)_
+{% endif %} 

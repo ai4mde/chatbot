@@ -1,0 +1,149 @@
+services:
+  # ===========================================================================
+  # Postgres
+  # ---------------------------------------------------------------------------
+  postgres:
+    container_name: postgres
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: chatbot_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - /opt/ai4mde/050/postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+
+  # ===========================================================================
+  # Qdrant
+  # ---------------------------------------------------------------------------
+  qdrant:
+    container_name: qdrant
+    image: qdrant/qdrant
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    volumes:
+      - /opt/ai4mde/050/qdrant_data:/qdrant/storage
+    environment:
+      QDRANT__SERVICE__GRPC_PORT: 6334
+
+
+  # ===========================================================================
+  # Redis
+  # ---------------------------------------------------------------------------
+  redis:
+    container_name: redis
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - /opt/ai4mde/050/redis_data:/data
+
+
+  # ===========================================================================
+  # Chatback
+  # ---------------------------------------------------------------------------
+  chatback:
+    container_name: chatback
+    build:
+      context: ./chatback
+      dockerfile: Dockerfile
+      args:
+        USER_ID: 1101  # Your user ID
+    ports:
+      - "8000:8000"
+    user: "cbuser"  # Use the user created in the Dockerfile
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+    #  - ./chatback:/chatback:Z
+      - ./config/chatback.env:/chatback/config/chatback.env:U
+      - /opt/ai4mde/050/data:/chatback/data:U
+    #  - chatback-temp:/chatback/temp:Z
+    depends_on:
+      postgres:
+        condition: service_healthy
+      qdrant:
+        condition: service_started
+      redis:
+        condition: service_started
+    environment:
+      - ENVIRONMENT=production
+    tty: true
+#    labels:
+#      - "traefik.enable=true"
+#      - "traefik.http.routers.chatback.rule=PathPrefix(`/api`)"
+#      - "traefik.http.routers.chatback.entrypoints=websecure"
+#      - "traefik.http.routers.chatback.middlewares=cors@file,secureHeaders@file"
+#      - "traefik.http.services.chatback.loadbalancer.server.port=8000"
+    #networks:
+    #  - chatnet
+
+
+
+  # ===========================================================================
+  # Chatfront
+  # ---------------------------------------------------------------------------
+  chatfront:
+    container_name: chatfront
+    build:
+      context: ./chatfront
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    env_file:
+      - ./config/chatfront.env
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - ./config/chatfront.env:/chatfront/config/chatfront.env:U
+      - /opt/ai4mde/050/data:/chatfront/data:U
+    depends_on:
+      - chatback
+    environment:
+      - NODE_ENV=production
+      - CHATBACK_URL=http://chatback:8000
+      - PUBLIC_CHATBACK_URL=http://localhost:8000
+#    labels:
+#      - "traefik.enable=true"
+#      - "traefik.http.routers.chatfront.rule=PathPrefix(`/`)"
+#      - "traefik.http.routers.chatfront.entrypoints=websecure"
+#      - "traefik.http.routers.chatfront.middlewares=secureHeaders@file"
+#      - "traefik.http.services.chatfront.loadbalancer.server.port=3000"
+    #networks:
+    #  - chatnet
+
+  # ===========================================================================
+  # Traefik
+  # ---------------------------------------------------------------------------
+#  traefik:
+#    build:
+#      context: ./traefik
+#      dockerfile: Dockerfile
+#    ports:
+#      - "80:80"
+#      - "443:443"
+#      - "8080:8080"  # Dashboard
+#    volumes:
+#      - /run/podman/podman.sock:/var/run/docker.sock:ro
+#      - ./traefik/config.yml:/etc/traefik/config.yml:ro
+#      - traefik-acme:/etc/traefik/acme
+#    networks:
+#      - chatnet
+#    restart: unless-stopped
+
+
+#networks:
+#  chatnet:
+#    driver: bridge
+
+volumes:
+  chatback-temp:
+    driver: local
+#  traefik-acme:
+#    driver: local

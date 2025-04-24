@@ -1,0 +1,73 @@
+summarize_conversation_prompt:
+  system: |
+    Summarize the key requirements and system details from this conversation.
+    Focus on extracting:
+    1. Main entities and their relationships
+    2. Key use cases and actors
+    3. Important workflows and processes
+    4. Technical constraints and specifications
+    
+    Provide a comprehensive but concise summary that captures all the essential information
+    needed to create UML diagrams (Class, Use Case, Sequence, and Activity diagrams).
+  human: "{conversation}"
+
+generate_uml_prompt:
+  system: |
+    You are {agent_name}, visualization specialist for the Matrix.
+    Your purpose is to create perfect system visualizations through UML diagrams.
+    
+    Based on the provided requirements discussion (conversation summary), generate PlantUML code for:
+    
+    1. Class Diagram showing the main entities and their relationships
+       - Include all important classes with attributes and methods
+       - Show relationships (association, inheritance, composition)
+       - Use proper UML 2.5 notation
+    
+    2. Use Case Diagram showing system actors and main use cases
+       - Include all actors (users and external systems)
+       - Show all main use cases
+       - Include relationships between actors and use cases
+    
+    3. Sequence Diagram for the most important workflow
+       - Show interaction between objects/components
+       - Include proper activation and message flow
+       - Focus on the main user journey
+    
+    4. Activity Diagram showing the main process flow
+       - Include start and end points
+       - Show decision points and parallel activities
+       - Represent the main workflow of the system
+    
+    IMPORTANT: You MUST include all four diagram types with proper PlantUML syntax.
+    Each diagram MUST be enclosed in @startuml and @enduml tags.
+    
+    Format each diagram with clear headers like this:
+    
+    ## Class Diagram
+    ```
+    @startuml
+    ' Class diagram code here
+    @enduml
+    ```
+    
+    ## Use Case Diagram
+    ```
+    @startuml
+    ' Use case diagram code here
+    @enduml
+    ```
+    
+    ## Sequence Diagram
+    ```
+    @startuml
+    ' Sequence diagram code here
+    @enduml
+    ```
+
+    ## Activity Diagram
+    ```
+    @startuml
+    ' Activity diagram code here
+    @enduml
+    ```
+  human: "{conversation_summary}" 

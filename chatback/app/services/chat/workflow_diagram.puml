@@ -1,0 +1,71 @@
+@startuml Agent Workflow
+
+skinparam backgroundColor white
+skinparam componentStyle rectangle
+skinparam actorStyle awesome
+skinparam ArrowColor #333333
+skinparam ArrowThickness 1.5
+skinparam NodeBackgroundColor #EEEEEE
+skinparam NodeBorderColor #999999
+skinparam NodeFontSize 14
+skinparam NodeFontStyle bold
+skinparam NoteBackgroundColor #FFFFCC
+skinparam NoteBorderColor #999999
+
+' Define the actors and components
+actor "User" as User
+component "Chat Manager" as ChatManager
+component "Interview Agent" as InterviewAgent
+component "Branch Decision" as Branch #LightBlue
+component "Diagram Agent" as DiagramAgent
+component "Requirements Agent" as RequirementsAgent
+component "Merge Results" as Merge #LightBlue
+component "SRS Document Agent" as SRSDocumentAgent
+component "End Workflow" as End #LightGreen
+
+' Define the control flags
+note right of Branch
+  Control Flags:
+  DISABLE_DIAGRAM
+  DISABLE_REQUIREMENTS
+  DISABLE_SRSDOCUMENT
+end note
+
+' Define the workflow
+User --> ChatManager : sends message
+ChatManager --> InterviewAgent : initializes workflow
+InterviewAgent --> Branch : interview completed
+
+' Branch based on flags
+Branch --> DiagramAgent : if not DISABLE_DIAGRAM
+Branch --> RequirementsAgent : if not DISABLE_REQUIREMENTS
+Branch --> End : if all phases disabled
+
+' Continue workflow
+DiagramAgent --> Merge : diagrams generated
+RequirementsAgent --> Merge : requirements extracted
+
+' Merge and proceed based on flags
+Merge --> SRSDocumentAgent : if not DISABLE_SRSDOCUMENT
+Merge --> End : if DISABLE_SRSDOCUMENT
+
+' Complete workflow
+SRSDocumentAgent --> End : document generated
+
+' Add notes for results
+note right of End
+  Final Results:
+  - interview_result
+  - diagram_result (if enabled)
+  - requirements_result (if enabled)
+  - document_result (if enabled)
+  - phase_status
+  - completed_steps
+end note
+
+' Add conditional paths
+Branch -[#red,dashed]-> DiagramAgent : Conditional
+Branch -[#red,dashed]-> RequirementsAgent : Conditional
+Merge -[#red,dashed]-> SRSDocumentAgent : Conditional
+
+@enduml 
