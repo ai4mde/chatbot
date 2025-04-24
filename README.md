@@ -24,7 +24,6 @@ The project is organized into the following main directories:
 To set up the project for local development:
 
 1.  **Prepare the environment:**
-    - Create the `/opt/ai4mde/050/data` subdirectory on your system. This directory will be used to store persistent data for the services (refer to the Compose file for details).
     - Navigate to the `./config` directory.
     - For each file ending in `.example`, create a copy without the `.example` suffix (e.g., copy `chatback.env.example.yml` to `chatback.env`).
     - Edit the newly created configuration files and replace all placeholder values marked with `<change me>` with your actual configuration details.
@@ -98,6 +97,7 @@ To set up the project for local development:
     Active: Yes
     ```
     - Other commnads are available: `del_group.py`, `del_user.py`, `groupd.py`, `mod_group.py`, `mod_user.py` and `users.py`.
+    - Create the `/opt/ai4mde/data` subdirectory on your system. This directory will be used to store persistent data for the services (refer to the Compose file for details). Copy the content of `data-template` to `/opt/ai4mde/data` and rname `<test-group>` to the group-name have created. 
 
 7.  **Access the application:**
     - Open your web browser and navigate to `http://localhost:3000`.
