@@ -48,54 +48,54 @@ To set up the project for local development:
 6.  **Initial Data Setup (Manual Step):**
     - Once the services are running, you need to create an initial user and group in the database.
     - Execute the appropriate command within the `chatback` container to achieve this. The specific command is shown here:
-      ```bash
-      podman exec -it chatback python /chatback/scripts/add_group.py
+    ```bash
+    podman exec -it chatback python /chatback/scripts/add_group.py
 
-=== Add Group Script v1.0 ===
+    === Add Group Script v1.0 ===
 
-Group name: test-group
-Description (optional):
+    Group name: test-group
+    Description (optional):
 
-Please confirm the following:
-Group Name: test-group
-Description: (none)
+    Please confirm the following:
+    Group Name: test-group
+    Description: (none)
 
-Save? (Y/n) [y]: y
+    Save? (Y/n) [y]: y
 
-Creating group 'test-group'...
+    Creating group 'test-group'...
 
-Successfully created group 'test-group' with ID: 2
-      ```
+    Successfully created group 'test-group' with ID: 2
+    ```
     - Next you need to create a user owned by the created group.
     ```bash
     podman exec -it chatback python /chatback/scripts/add_user.py
 
-=== Add User Script v1.0 ===
+    === Add User Script v1.0 ===
 
-Username: test-user
-Email: test@example.com
-Password: Secure_PassWord
+    Username: test-user
+    Email: test@example.com
+    Password: Secure_PassWord
 
-Available groups:
-- test-group
+    Available groups:
+    - test-group
 
-Assign to a group? (y/N) [n]: y
-Group name: test-group
+    Assign to a group? (y/N) [n]: y
+    Group name: test-group
 
-Please confirm the following:
-Username: test-user
-Email: test@example.com
-Group: test-group
+    Please confirm the following:
+    Username: test-user
+    Email: test@example.com
+    Group: test-group
 
-Save? (Y/n) [y]: y
+    Save? (Y/n) [y]: y
 
-Creating user 'test-user'...
+    Creating user 'test-user'...
 
-Successfully created user:
-Username: test-user
-Email: test@example.com
-Group: test-group
-Active: Yes
+    Successfully created user:
+    Username: test-user
+    Email: test@example.com
+    Group: test-group
+    Active: Yes
     ```
     - Other commnads are available: `del_group.py`, `del_user.py`, `groupd.py`, `mod_group.py`, `mod_user.py` and `users.py`.
 
