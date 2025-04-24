@@ -49,7 +49,7 @@ To set up the project for local development:
     - Once the services are running, you need to create an initial user and group in the database.
     - Execute the appropriate command within the `chatback` container to achieve this. The specific command is shown here:
     ```bash
-    podman exec -it chatback python /chatback/scripts/add_group.py
+    ❯ podman exec -it chatback python /chatback/scripts/add_group.py
 
     === Add Group Script v1.0 ===
 
@@ -68,7 +68,7 @@ To set up the project for local development:
     ```
     - Next you need to create a user owned by the created group.
     ```bash
-    podman exec -it chatback python /chatback/scripts/add_user.py
+    ❯ podman exec -it chatback python /chatback/scripts/add_user.py
 
     === Add User Script v1.0 ===
 
