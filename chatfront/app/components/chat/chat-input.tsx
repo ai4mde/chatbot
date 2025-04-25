@@ -9,113 +9,75 @@ interface ChatInputProps {
   input: string;
   handleInputChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void;
   handleSubmit: (e: React.FormEvent) => void;
+  handleAudioSubmit: (audioBlob: Blob) => Promise<void>;
   isLoading?: boolean;
   lastMessageId?: string;
   hasActiveSession: boolean;
 }
 
-// Type definition for SpeechRecognition (adjust if needed for different browsers)
-declare global {
-  interface Window {
-    SpeechRecognition: any;
-    webkitSpeechRecognition: any;
+// Function to find a supported mimeType
+const getSupportedMimeType = (): string | null => {
+  const types = [
+    'audio/ogg; codecs=opus', // Preferred for Firefox/compatibility
+    'audio/webm; codecs=opus',
+    'audio/webm',
+    'audio/mp4',
+    'audio/aac'
+  ];
+  for (const type of types) {
+    if (MediaRecorder.isTypeSupported(type)) {
+      return type;
+    }
   }
-}
+  return null;
+};
 
 export function ChatInput({
   input,
   handleInputChange,
   handleSubmit,
+  handleAudioSubmit,
   isLoading,
   lastMessageId,
   hasActiveSession
 }: ChatInputProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const recognitionRef = useRef<any>(null); // Ref to store SpeechRecognition instance
+  // Refs for MediaRecorder functionality
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
 
   // State for microphone functionality
   const [isRecording, setIsRecording] = useState(false);
-  const [permissionStatus, setPermissionStatus] = useState<'idle' | 'pending' | 'granted' | 'denied'>('idle');
+  const [permissionStatus, setPermissionStatus] = useState<'idle' | 'pending' | 'granted' | 'denied' | 'prompt'>('idle');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isSupported, setIsSupported] = useState(false);
+  const [mimeType, setMimeType] = useState<string | null>(null);
 
+  // Check for MediaRecorder support on mount
   useEffect(() => {
-    // Feature detection
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (SpeechRecognition) {
-      setIsSupported(true);
-      const recognition = new SpeechRecognition();
-      recognition.continuous = false;
-      recognition.interimResults = true; // Get interim results for live feedback
-      recognition.lang = 'en-US'; // Default language, can be made configurable
-
-      recognition.onstart = () => {
-        console.log('Speech recognition started');
-        setIsRecording(true);
-        setErrorMessage(null);
-        setPermissionStatus('granted'); // Assume granted if onstart fires
-      };
-
-      recognition.onend = () => {
-        console.log('Speech recognition ended');
-        setIsRecording(false);
-      };
-
-      recognition.onerror = (event: any) => {
-        console.error('Speech recognition error:', event.error);
-        let errorMsg = 'An unknown error occurred.';
-        if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
-          errorMsg = 'Microphone permission denied. Please enable it in browser settings.';
-          setPermissionStatus('denied');
-        } else if (event.error === 'no-speech') {
-          errorMsg = 'No speech detected. Please try again.';
-        } else if (event.error === 'audio-capture') {
-          errorMsg = 'Microphone not found or not working.';
-        } else if (event.error === 'network') {
-          errorMsg = 'Network error during speech recognition.';
+    if (typeof window !== 'undefined' && navigator.mediaDevices && typeof navigator.mediaDevices.getUserMedia === 'function' && typeof window.MediaRecorder === 'function') {
+        const supportedType = getSupportedMimeType();
+        if (supportedType) {
+            setIsSupported(true);
+            setMimeType(supportedType);
+            // console.log("MediaRecorder supported with type:", supportedType);
+            // Check initial permission status if possible (some browsers support this)
+            navigator.permissions?.query({ name: 'microphone' as PermissionName }).then(permission => {
+                setPermissionStatus(permission.state);
+                permission.onchange = () => setPermissionStatus(permission.state);
+            }).catch(() => {
+                 console.warn("Permission query API not fully supported."); // Keep this general warning
+                 // Keep status as 'idle' - will prompt on first click
+            });
+        } else {
+            console.warn("No supported audio mimeType found for MediaRecorder.");
+            setIsSupported(false);
+            setErrorMessage("Your browser doesn't support required audio recording formats.");
         }
-        setErrorMessage(errorMsg);
-        setIsRecording(false);
-      };
-
-      // Add onresult handler to process transcripts
-      recognition.onresult = (event: any) => {
-        let interimTranscript = '';
-        let finalTranscript = '';
-
-        for (let i = event.resultIndex; i < event.results.length; ++i) {
-          const transcript = event.results[i][0].transcript;
-          if (event.results[i].isFinal) {
-            finalTranscript += transcript + ' ';
-          } else {
-            interimTranscript += transcript;
-          }
-        }
-
-        console.log('Interim:', interimTranscript);
-        console.log('Final:', finalTranscript);
-
-        // Update the input field with the final transcript
-        if (finalTranscript.trim()) {
-          // Use the handleInputChange prop to update the parent state
-          // We simulate a change event for compatibility with useChat hook
-          const syntheticEvent = {
-            target: { value: input + finalTranscript.trim() }, // Append to existing input
-          } as React.ChangeEvent<HTMLTextAreaElement>; 
-          handleInputChange(syntheticEvent);
-
-          // Optional: Focus the textarea after transcription
-          textareaRef.current?.focus();
-        }
-        
-        // Optional: Update placeholder or state with interim results for live feedback
-        // You could set another state variable here if you want to display interim results elsewhere
-      };
-
-      recognitionRef.current = recognition;
     } else {
-      console.warn('SpeechRecognition API not supported in this browser.');
+      // console.warn("MediaRecorder API or getUserMedia not supported in this browser.");
       setIsSupported(false);
+      setErrorMessage("Audio recording is not supported in your browser.");
     }
   }, []);
 
@@ -144,32 +106,154 @@ export function ChatInput({
     handleSubmit(e);
   };
 
-  const handleMicClick = useCallback(() => {
-    if (!isSupported || !recognitionRef.current) {
-      setErrorMessage('Speech recognition is not supported in your browser.');
+  // Function to setup MediaRecorder instance
+  const setupMediaRecorder = (stream: MediaStream) => {
+      if (!mimeType) {
+          console.error("Cannot setup MediaRecorder: mimeType is null");
+          setErrorMessage("Audio format configuration error.");
+          return;
+      }
+      console.log("Setting up MediaRecorder with stream and mimeType:", mimeType);
+      try {
+        mediaRecorderRef.current = new MediaRecorder(stream, { mimeType });
+        audioChunksRef.current = []; // Reset chunks
+        // console.log("MediaRecorder instance created successfully.");
+
+        mediaRecorderRef.current.ondataavailable = (event: BlobEvent) => {
+            // console.log("ondataavailable event fired");
+            if (event.data.size > 0) {
+                audioChunksRef.current.push(event.data);
+                // console.log("Received audio chunk size:", event.data.size);
+            } else {
+                // console.log("ondataavailable fired with empty data.");
+            }
+        };
+
+        mediaRecorderRef.current.onstop = async () => {
+            // console.log("Recording stopped. Total chunks:", audioChunksRef.current.length);
+            if (audioChunksRef.current.length > 0) {
+                const audioBlob = new Blob(audioChunksRef.current, { type: mimeType });
+                // console.log("Created audio blob size:", audioBlob.size, "type:", audioBlob.type);
+                setIsRecording(false);
+                // Send the blob using the new prop
+                try {
+                     setErrorMessage("Transcribing audio..."); // Indicate processing
+                     await handleAudioSubmit(audioBlob);
+                     setErrorMessage(null); // Clear message on success
+                } catch (submitError) {
+                     console.error("Error submitting audio:", submitError);
+                     setErrorMessage("Failed to process audio. Please try again.");
+                }
+
+                // Clean up stream tracks after stopping and processing
+                stream.getTracks().forEach(track => track.stop());
+                mediaRecorderRef.current = null; // Clean up recorder instance
+            } else {
+                // console.warn("No audio data recorded.");
+                 setIsRecording(false);
+                 // Clean up stream tracks even if no data
+                 stream.getTracks().forEach(track => track.stop());
+                  mediaRecorderRef.current = null;
+            }
+            audioChunksRef.current = []; // Clear chunks
+        };
+
+         mediaRecorderRef.current.onerror = (event: Event) => {
+             console.error("MediaRecorder error:", event);
+             setErrorMessage("An error occurred during recording.");
+             setIsRecording(false);
+             // Clean up stream tracks on error
+             stream.getTracks().forEach(track => track.stop());
+             mediaRecorderRef.current = null;
+             audioChunksRef.current = [];
+         };
+      } catch (error) {
+          console.error("Failed to create MediaRecorder instance:", error);
+          setErrorMessage("Failed to initialize audio recorder.");
+          // Clean up stream tracks if setup fails
+          stream.getTracks().forEach(track => track.stop());
+          mediaRecorderRef.current = null;
+          setIsRecording(false); // Ensure recording state is off
+      }
+  };
+
+  // Function to start recording
+  const startRecording = useCallback(async () => {
+    if (!isSupported || !mimeType) {
+      setErrorMessage("Audio recording not supported or no compatible format found.");
       return;
     }
+    setErrorMessage(null); // Clear previous errors
 
-    if (permissionStatus === 'denied') {
-        setErrorMessage('Microphone permission denied. Please enable it in browser settings.');
-        return;
+    try {
+      // Request microphone permission if not granted
+      if (permissionStatus !== 'granted') {
+          setPermissionStatus('pending');
+          // Prompt user for permission
+          const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+          setPermissionStatus('granted'); // Permission granted
+          setupMediaRecorder(stream); // Setup recorder with the granted stream
+      } else {
+          // If already granted, get the stream again (or reuse if stored)
+          const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+          setupMediaRecorder(stream);
+      }
+      // Start recording after setup
+       if (mediaRecorderRef.current) {
+          // console.log("Attempting to start recording...");
+          mediaRecorderRef.current.start();
+          // Check state immediately after calling start()
+          // console.log("Called start(). Current recorder state:", mediaRecorderRef.current.state);
+          if (mediaRecorderRef.current.state === "recording") {
+              setIsRecording(true);
+              // console.log("Recording successfully started.");
+          } else {
+              console.warn("MediaRecorder state is not 'recording' after start():", mediaRecorderRef.current.state);
+              // Potentially set an error message here if state is unexpected
+              setErrorMessage("Recorder failed to enter recording state.");
+              setIsRecording(false);
+          }
+      } else {
+          console.error("Cannot start recording: mediaRecorderRef is null after setup attempt.");
+           setErrorMessage("Recorder setup failed.");
+           setIsRecording(false);
+      }
+
+    } catch (err) {
+      // console.error("Error accessing microphone or starting recording:", err);
+      setPermissionStatus('denied'); // Assume denial if error occurs
+      if (err instanceof Error && err.name === 'NotAllowedError') {
+          setErrorMessage("Microphone permission denied. Please enable it in browser settings.");
+      } else {
+           setErrorMessage("Could not start microphone. Ensure it's connected and permissions are allowed.");
+      }
+       setIsRecording(false);
     }
+  }, [isSupported, permissionStatus, mimeType, setupMediaRecorder]);
+
+  // Function to stop recording
+  const stopRecording = useCallback(() => {
+    if (mediaRecorderRef.current && isRecording) {
+      // console.log("Stopping recording manually...");
+      mediaRecorderRef.current.stop(); // This triggers the 'onstop' handler
+    }
+  }, [isRecording]);
+
+  // Handle Mic Button Click
+  const handleMicClick = useCallback(() => {
+    if (!isSupported) {
+      setErrorMessage("Audio recording is not supported by your browser.");
+      return;
+    }
+    if (isLoading) return; // Don't allow recording while AI is thinking
 
     if (isRecording) {
-      console.log('Stopping recording manually');
-      recognitionRef.current.stop();
+      stopRecording();
     } else {
-      setPermissionStatus('pending'); // Indicate permission might be requested
-      setErrorMessage(null); // Clear previous errors
-      try {
-        recognitionRef.current.start();
-      } catch (error) {
-        console.error("Error starting recognition:", error);
-        setErrorMessage('Could not start microphone.');
-        setPermissionStatus('idle'); // Reset status if start fails immediately
-      }
+      startRecording();
     }
-  }, [isSupported, isRecording, permissionStatus]);
+  }, [isSupported, isLoading, isRecording, stopRecording, startRecording]);
+
 
   if (!hasActiveSession) {
     return (
@@ -200,10 +284,12 @@ export function ChatInput({
             onChange={handleInputChange}
             onKeyDown={handleKeyDown}
             placeholder={
-              isRecording ? 'Listening...' :
-              permissionStatus === 'denied' ? 'Mic access denied' :
+              isRecording ? 'Recording... Click mic to stop' :
+              permissionStatus === 'pending' ? 'Requesting mic permission...' :
+              permissionStatus === 'denied' ? 'Mic access denied. Check settings.' :
               errorMessage ? `Error: ${errorMessage}` :
-              'Type your message or click the mic...'
+              !isSupported ? 'Audio recording not supported.' :
+              'Type your message or click the mic to record...'
             }
             className={cn(
               'min-h-[80px] w-full resize-none pr-12',
@@ -215,7 +301,7 @@ export function ChatInput({
               'text-foreground placeholder:text-muted-foreground',
               'scrollbar-custom'
             )}
-            disabled={isLoading || isRecording}
+            disabled={isLoading || isRecording || permissionStatus === 'pending'}
           />
           <div className="flex items-center absolute right-2 bottom-2 space-x-1">
             {isSupported && (
@@ -227,8 +313,9 @@ export function ChatInput({
                 disabled={isLoading || !hasActiveSession || permissionStatus === 'pending'}
                 className={cn(
                     "h-8 w-8",
-                    isRecording ? "text-red-500 hover:bg-red-100" : "text-muted-foreground hover:bg-accent",
+                    isRecording ? "text-red-500 hover:bg-red-100 animate-pulse" : "text-muted-foreground hover:bg-accent",
                     permissionStatus === 'denied' ? "text-destructive hover:bg-destructive/10 cursor-not-allowed" : "",
+                    permissionStatus === 'pending' ? "text-orange-500 cursor-wait" : "",
                 )}
                 aria-label={isRecording ? "Stop recording" : "Start recording"}
               >
@@ -239,7 +326,7 @@ export function ChatInput({
             <Button
               type='submit'
               size='icon'
-              disabled={isLoading || !input.trim() || isRecording}
+              disabled={isLoading || !input.trim() || isRecording || permissionStatus === 'pending'}
               className={cn(
                 'h-8 w-8',
                 'bg-primary text-primary-foreground',
@@ -248,18 +335,14 @@ export function ChatInput({
                 'disabled:opacity-50'
               )}
             >
-              <SendHorizontal className='h-4 w-4' />
-              <span className='sr-only'>Send message</span>
+              <SendHorizontal className="h-4 w-4" />
             </Button>
           </div>
         </div>
-        {errorMessage && permissionStatus !== 'denied' && (
-            <p className="text-xs text-destructive mt-1 ml-1">{errorMessage}</p>
-        )}
-        {!isSupported && hasActiveSession && (
-             <p className="text-xs text-muted-foreground mt-1 ml-1">Voice input not supported by your browser.</p>
-        )}
       </div>
+      {errorMessage && permissionStatus !== 'denied' && !isRecording && (
+          <p className="text-xs text-destructive text-center px-8 pb-2">{errorMessage}</p>
+      )}
     </form>
   );
 } 

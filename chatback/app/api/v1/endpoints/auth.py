@@ -86,10 +86,20 @@ async def login(
 
             logger.info(f"Successful login for user: {user.username}")
             
+            # --- Prepare data for token payload ---
+            token_data = {
+                "sub": user.username,
+                "is_admin": user.is_admin  # Add the is_admin flag
+                # You could add other relevant info here too if needed:
+                # "user_id": user.id,
+                # "group_id": user.group_id
+            }
+            # -------------------------------------
+
             # Create and return token with additional info
             token = Token(
                 access_token=security.create_access_token(
-                    data={"sub": user.username}
+                    data=token_data # Pass the dictionary with is_admin
                 ),
                 token_type="bearer",
                 id=str(user.id),

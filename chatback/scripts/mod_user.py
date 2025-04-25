@@ -81,15 +81,16 @@ async def list_available_users():
 
                 print("\nAvailable Users:")
                 print("=" * 80)
-                print(f"{'ID':<5} {'Username':<15} {'Email':<30} {'Group':<15} {'Active'}")
+                print(f"{'ID':<5} {'Username':<15} {'Email':<30} {'Group':<15} {'Active':<8} {'Admin'}")
                 print("-" * 80)
 
                 for user in users:
                     group_name = user.group.name if user.group else 'No Group'
                     active_status = "Yes" if user.is_active else "No"
+                    admin_status = "Yes" if user.is_admin else "No"
                     print(
                         f"{user.id:<5} {user.username:<15} {user.email:<30} "
-                        f"{group_name:<15} {active_status}"
+                        f"{group_name:<15} {active_status:<8} {admin_status}"
                     )
                 print("-" * 80)
                 print()
@@ -126,6 +127,7 @@ async def modify_user(username: str):
                 print(f"Email: {user.email}")
                 print(f"Group: {user.group.name if user.group else 'No Group'}")
                 print(f"Active: {'Yes' if user.is_active else 'No'}")
+                print(f"Admin: {'Yes' if user.is_admin else 'No'}")
                 print("\nLeave blank to keep current value")
 
                 # Get new values
@@ -164,6 +166,15 @@ async def modify_user(username: str):
                 )
                 user.is_active = new_status.lower() == "y"
 
+                # Handle admin status
+                current_admin_status = "y" if user.is_admin else "n"
+                new_admin_status = prompt_input(
+                    "Admin? (Y/N)",
+                    required=False,
+                    default=current_admin_status
+                )
+                user.is_admin = new_admin_status.lower() == "y"
+
                 # Update basic fields
                 user.email = new_email
                 user.username = new_username
@@ -174,6 +185,7 @@ async def modify_user(username: str):
                 print(f"Email: {user.email}")
                 print(f"Group: {user.group.name if user.group else 'No Group'}")
                 print(f"Active: {'Yes' if user.is_active else 'No'}")
+                print(f"Admin: {'Yes' if user.is_admin else 'No'}")
 
                 confirm = prompt_input("\nSave changes? (Y/n)", required=False, default="y")
                 if confirm.lower() != "y":

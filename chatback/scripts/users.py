@@ -57,16 +57,17 @@ async def display_users(users: List[User]) -> None:
 
         print("\nUsers:")
         print("=" * 80)
-        print(f"{'ID':<5} {'Username':<15} {'Email':<30} {'Group':<15} {'Active'}")
+        print(f"{'ID':<5} {'Username':<15} {'Email':<30} {'Group':<15} {'Active':<8} {'Admin'}")
         print("-" * 80)
 
         for user in users:
             try:
                 group_name = user.group.name if user.group else 'No Group'
                 active_status = "Yes" if user.is_active else "No"
+                admin_status = "Yes" if user.is_admin else "No"
                 print(
                     f"{user.id:<5} {user.username:<15} {user.email:<30} "
-                    f"{group_name:<15} {active_status}"
+                    f"{group_name:<15} {active_status:<8} {admin_status}"
                 )
             except Exception as e:
                 print_color(f"Error displaying user {user.id}: {str(e)}", RED)

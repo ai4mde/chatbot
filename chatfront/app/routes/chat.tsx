@@ -36,13 +36,14 @@ export const action: ActionFunction = async ({ request }) => {
 
 export default function Chat() {
   const { user, sessionTimeoutMinutes } = useLoaderData<typeof loader>();
-  console.log('Chat component rendered with user:', user?.id);
+  // console.log('Chat component rendered with user:', user?.id);
   
   const {
     messages,
     input,
     handleInputChange,
     handleSubmit,
+    handleAudioSubmit,
     isLoading,
     error,
     startNewChat,
@@ -61,7 +62,7 @@ export default function Chat() {
 
   // Add initialization effect
   useEffect(() => {
-    console.log('Initialization effect:', { isLoading, sessions, error });
+    // console.log('Initialization effect:', { isLoading, sessions, error });
     if (!isLoading) {
       setIsInitializing(false);
     }
@@ -155,6 +156,7 @@ export default function Chat() {
             input={input}
             handleInputChange={handleInputChange}
             handleSubmit={handleSubmit}
+            handleAudioSubmit={handleAudioSubmit}
             isLoading={isLoading}
             hasActiveSession={Boolean(currentSession)}
           />

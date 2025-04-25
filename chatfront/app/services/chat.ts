@@ -14,12 +14,17 @@ if (typeof window !== 'undefined') {
 
 // Only log in client environment
 if (typeof window !== 'undefined') {
-  console.log('Configured CHATBACK_URL (Client):', CHATBACK_URL);
+  // console.log('Configured CHATBACK_URL (Client):', CHATBACK_URL);
 }
 
 interface ApiResponse<T> {
   data?: T;
   error?: string;
+}
+
+// Added type for transcription response data
+interface TranscriptionResponse {
+  transcription: string;
 }
 
 function getAuthHeader(user: CustomUser): string {
@@ -52,27 +57,33 @@ async function handleResponse<T>(response: Response): Promise<ApiResponse<T>> {
   }
 }
 
-const defaultHeaders = (user: CustomUser) => ({
-  'Authorization': getAuthHeader(user),
-  'Accept': 'application/json',
-  'Content-Type': 'application/json'
-});
+const defaultHeaders = (user: CustomUser, omitContentType: boolean = false) => {
+  const headers: Record<string, string> = {
+    'Authorization': getAuthHeader(user),
+    'Accept': 'application/json',
+  };
+  // Content-Type is handled by FormData when sending files
+  if (!omitContentType) {
+      headers['Content-Type'] = 'application/json';
+  }
+  return headers;
+};
 
 export const chatApi = {
   async getSessions(user: CustomUser): Promise<ApiResponse<ChatSession[]>> {
     try {
-      console.log('Fetching sessions...');
-      console.log('Using CHATBACK_URL:', CHATBACK_URL);
-      console.log('Auth header:', getAuthHeader(user));
+      // console.log('Fetching sessions...');
+      // console.log('Using CHATBACK_URL:', CHATBACK_URL);
+      // console.log('Auth header:', getAuthHeader(user));
       
       const response = await fetch(`${CHATBACK_URL}/api/v1/chat/sessions`, {
         headers: defaultHeaders(user),
         mode: 'cors'
       });
       
-      console.log('Sessions response status:', response.status);
+      // console.log('Sessions response status:', response.status);
       const result = await handleResponse<ChatSession[]>(response);
-      console.log('Sessions response:', result);
+      // console.log('Sessions response:', result);
       return result;
     } catch (error) {
       console.error('Error fetching sessions:', error);
@@ -98,8 +109,8 @@ export const chatApi = {
 
   async createChatSession(title: string, user: CustomUser): Promise<ApiResponse<ChatSession>> {
     try {
-      console.log('Creating chat session with title:', title);
-      console.log('Auth header:', getAuthHeader(user));
+      // console.log('Creating chat session with title:', title);
+      // console.log('Auth header:', getAuthHeader(user));
       
       const response = await fetch(`${CHATBACK_URL}/api/v1/chat/sessions`, {
         method: 'POST',
@@ -108,9 +119,9 @@ export const chatApi = {
         body: JSON.stringify({ title })
       });
 
-      console.log('Response status:', response.status);
+      // console.log('Response status:', response.status);
       const responseText = await response.text();
-      console.log('Response text:', responseText);
+      // console.log('Response text:', responseText);
 
       if (!response.ok) {
         return {
@@ -210,6 +221,39 @@ export const chatApi = {
     } catch (error) {
       return {
         error: error instanceof Error ? error.message : 'Failed to fetch messages'
+      };
+    }
+  },
+
+  // New method for audio transcription
+  async transcribeAudio(
+      user: CustomUser,
+      sessionId: number, // Include session ID for context if needed by backend
+      audioBlob: Blob
+  ): Promise<ApiResponse<TranscriptionResponse>> {
+    try {
+      const formData = new FormData();
+      // Use a filename that includes the session ID, could be useful on backend
+      const filename = `session_${sessionId}_recording.${audioBlob.type.split('/')[1]?.split(';')[0] || 'audio'}`;
+      formData.append('file', audioBlob, filename);
+      // Optional: send session ID as separate field if backend needs it
+      // formData.append('session_id', sessionId.toString());
+
+      // console.log(`Sending audio to ${CHATBACK_URL}/api/v1/stt/transcribe, filename: ${filename}`);
+
+      const response = await fetch(`${CHATBACK_URL}/api/v1/stt/transcribe`, {
+        method: 'POST',
+        // Omit Content-Type header, let browser set it for FormData
+        headers: defaultHeaders(user, true),
+        mode: 'cors',
+        body: formData,
+      });
+
+      return handleResponse<TranscriptionResponse>(response);
+    } catch (error) {
+      console.error('Error sending audio for transcription:', error);
+      return {
+        error: error instanceof Error ? error.message : 'Failed to send audio'
       };
     }
   }

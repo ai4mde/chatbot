@@ -32,6 +32,10 @@ class UserInGroup(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
-# Avoid circular imports
-from app.schemas.user import UserBase
-GroupWithUsers.model_rebuild() 
+# Avoid circular imports by importing from the new base file
+from app.schemas.base_schemas import UserBase
+
+# Rebuild models that use forward references if necessary (might not be needed with direct import)
+# GroupWithUsers.model_rebuild() # This might be removable if Pydantic handles it
+# Or explicitly update forward refs if needed after importing UserBase:
+GroupWithUsers.model_rebuild(force=True) 

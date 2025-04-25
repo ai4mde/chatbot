@@ -6,6 +6,7 @@ import type { CustomUser } from '../types/auth.types';
 interface ChatHookReturn extends ChatState {
   handleInputChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void;
   handleSubmit: (e: React.FormEvent) => void;
+  handleAudioSubmit: (audioBlob: Blob) => Promise<void>;
   startNewChat: (title: string) => Promise<void>;
   deleteChat: () => Promise<void>;
   selectChat: (sessionId: number) => Promise<void>;
@@ -31,7 +32,7 @@ export function useChat(user: CustomUser): ChatHookReturn {
 
   // Load sessions on mount
   useEffect(() => {
-    console.log('useChat effect triggered with user:', user?.id);
+    // console.log('useChat effect triggered with user:', user?.id);
     if (user) {
       loadSessions();
     }
@@ -40,11 +41,11 @@ export function useChat(user: CustomUser): ChatHookReturn {
   const loadSessions = async () => {
     if (!user) return;
 
-    console.log('Loading sessions for user:', user.id);
+    // console.log('Loading sessions for user:', user.id);
     try {
       const response = await chatApi.getSessions(user);
-      console.log('Load sessions response:', response);
-      
+      // console.log('Load sessions response:', response);
+
       if (response.error) throw new Error(response.error);
       
       setPartialState({ 
@@ -159,6 +160,46 @@ export function useChat(user: CustomUser): ChatHookReturn {
     }
   };
 
+  const handleAudioSubmit = useCallback(async (audioBlob: Blob) => {
+    if (!user || !state.currentSession) {
+      setPartialState({ error: 'No active chat session for audio submission' });
+      throw new Error('No active chat session');
+    }
+    if (!audioBlob || audioBlob.size === 0) {
+      setPartialState({ error: 'No audio data captured.' });
+      throw new Error('No audio data');
+    }
+
+    // console.log(`Submitting audio blob size: ${audioBlob.size}, type: ${audioBlob.type}`);
+    setPartialState({ isLoading: true, isAiThinking: true, error: null });
+
+    try {
+      const response = await chatApi.transcribeAudio(user, state.currentSession.id, audioBlob);
+
+      if (response.error) {
+        throw new Error(response.error);
+      }
+
+      if (response.data && response.data.transcription) {
+        const transcribedText = response.data.transcription;
+        // console.log("Transcription received:", transcribedText);
+
+        setPartialState({ input: transcribedText });
+
+      } else {
+        throw new Error('No transcription received from server.');
+      }
+
+    } catch (error) {
+      console.error('Error during audio transcription/submission:', error);
+      const errorMsg = error instanceof Error ? error.message : 'Failed to process audio';
+      setPartialState({ error: errorMsg });
+      throw error;
+    } finally {
+      setPartialState({ isLoading: false, isAiThinking: false });
+    }
+  }, [user, state.currentSession?.id]);
+
   const startNewChat = async (title: string) => {
     if (!user) {
       setPartialState({ error: 'Not authenticated' });
@@ -214,9 +255,11 @@ export function useChat(user: CustomUser): ChatHookReturn {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (state.input.trim()) {
+    if (state.input.trim() && state.currentSession) {
       sendMessage(state.input);
       setPartialState({ input: '' });
+    } else if (!state.currentSession) {
+      setPartialState({ error: 'Please select or start a chat session first.' });
     }
   };
 
@@ -232,6 +275,7 @@ export function useChat(user: CustomUser): ChatHookReturn {
     ...state,
     handleInputChange,
     handleSubmit,
+    handleAudioSubmit,
     startNewChat,
     deleteChat,
     selectChat,

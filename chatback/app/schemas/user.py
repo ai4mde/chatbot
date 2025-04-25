@@ -2,13 +2,15 @@ from pydantic import BaseModel, EmailStr, StringConstraints, field_validator
 from typing import Annotated, Optional
 from datetime import datetime
 
-class UserBase(BaseModel):
-    email: EmailStr
-    username: str
+# Import the Group schema
+from .group import Group as GroupSchema 
+# Import UserBase from the new file
+from .base_schemas import UserBase
 
 class UserCreate(UserBase):
     password: str
     group_id: int | None = None
+    is_admin: bool = False
 
     @field_validator('password')
     def validate_password(cls, v):
@@ -27,13 +29,16 @@ class UserCreate(UserBase):
 class UserUpdate(UserBase):
     password: str | None = None
     group_id: int | None = None
+    is_admin: Optional[bool] = None
 
 class User(UserBase):
     id: int
     is_active: bool
+    is_admin: bool
     group_id: int | None = None
     created_at: datetime
     updated_at: Optional[datetime] = None
+    group: Optional[GroupSchema] = None
 
     class Config:
         from_attributes = True

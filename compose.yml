@@ -12,7 +12,7 @@ services:
     ports:
       - "5432:5432"
     volumes:
-      - /opt/ai4mde/050/postgres_data:/var/lib/postgresql/data
+      - /opt/ai4mde/066/postgres_data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 5s
@@ -30,7 +30,7 @@ services:
       - "6333:6333"
       - "6334:6334"
     volumes:
-      - /opt/ai4mde/050/qdrant_data:/qdrant/storage
+      - /opt/ai4mde/066/qdrant_data:/qdrant/storage
     environment:
       QDRANT__SERVICE__GRPC_PORT: 6334
 
@@ -44,7 +44,7 @@ services:
     ports:
       - "6379:6379"
     volumes:
-      - /opt/ai4mde/050/redis_data:/data
+      - /opt/ai4mde/066/redis_data:/data
 
 
   # ===========================================================================
@@ -64,7 +64,7 @@ services:
       - /etc/localtime:/etc/localtime:ro
     #  - ./chatback:/chatback:Z
       - ./config/chatback.env:/chatback/config/chatback.env:U
-      - /opt/ai4mde/050/data:/chatback/data:U
+      - /opt/ai4mde/066/data:/chatback/data:U
     #  - chatback-temp:/chatback/temp:Z
     depends_on:
       postgres:
@@ -102,7 +102,7 @@ services:
     volumes:
       - /etc/localtime:/etc/localtime:ro
       - ./config/chatfront.env:/chatfront/config/chatfront.env:U
-      - /opt/ai4mde/050/data:/chatfront/data:U
+      - /opt/ai4mde/066/data:/chatfront/data:U
     depends_on:
       - chatback
     environment:

@@ -11,6 +11,7 @@ class User(Base):
     username = Column(String, unique=True, index=True, nullable=False)
     hashed_password = Column(String, nullable=False)
     is_active = Column(Boolean, default=True)
+    is_admin = Column(Boolean, default=False, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     group_id = Column(Integer, ForeignKey("groups.id"))
@@ -25,6 +26,7 @@ class User(Base):
             "sub": str(self.id),
             "email": self.email,
             "username": self.username,
+            "is_admin": self.is_admin,
             "group_name": self.group.name if self.group else None
         }
   

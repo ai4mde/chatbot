@@ -10,7 +10,7 @@ interface SessionTimeoutWarningProps {
 
 // Create a singleton to track the timer across components
 let globalTimer: NodeJS.Timeout | null = null;
-let lastActivity = Date.now();
+let lastActivity: number;
 
 // Function to update last activity timestamp
 export function updateLastActivity() {
@@ -24,10 +24,13 @@ export function SessionTimeoutWarning({ timeoutMinutes, onTimeout }: SessionTime
   const resetTimer = useCallback(() => {
     setRemainingTime(timeoutMinutes * 60);
     setShowWarning(false);
-    lastActivity = Date.now();
+    updateLastActivity();
   }, [timeoutMinutes]);
 
   useEffect(() => {
+    updateLastActivity();
+    setRemainingTime(timeoutMinutes * 60);
+
     // Clear any existing timer
     if (globalTimer) {
       clearInterval(globalTimer);
@@ -57,15 +60,19 @@ export function SessionTimeoutWarning({ timeoutMinutes, onTimeout }: SessionTime
         onTimeout();
         if (globalTimer) {
           clearInterval(globalTimer);
+          globalTimer = null;
         }
       } else if (timeLeft <= warningTime) {
         setShowWarning(true);
+      } else {
+        setShowWarning(false);
       }
     }, 1000);
 
     return () => {
       if (globalTimer) {
         clearInterval(globalTimer);
+        globalTimer = null;
       }
       // Remove event listeners
       window.removeEventListener('mousemove', handleUserActivity);

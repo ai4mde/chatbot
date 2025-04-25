@@ -67,7 +67,7 @@ async def get_available_groups():
         print_color(f"Error fetching groups: {str(e)}", RED)
         raise
 
-async def create_user(username: str, email: str, password: str, group_name: str = None):
+async def create_user(username: str, email: str, password: str, group_name: str = None, is_admin: bool = False):
     """Create a new user."""
     try:
         print_color(f"\nCreating user '{username}'...", BLUE)
@@ -104,6 +104,7 @@ async def create_user(username: str, email: str, password: str, group_name: str 
                 email=email,
                 hashed_password=get_password_hash(password),
                 is_active=True,
+                is_admin=is_admin,
                 group=group
             )
             session.add(user)
@@ -113,6 +114,7 @@ async def create_user(username: str, email: str, password: str, group_name: str 
             print(f"Username: {user.username}")
             print(f"Email: {user.email}")
             print(f"Group: {user.group.name if user.group else 'No Group'}")
+            print(f"Admin: {'Yes' if user.is_admin else 'No'}")
             print(f"Active: Yes")
 
     except Exception as e:
@@ -128,6 +130,9 @@ async def main():
         username = prompt_input("Username")
         email = prompt_input("Email")
         password = prompt_input("Password")
+        
+        # Ask if user should be admin
+        is_admin = prompt_input("Make this user an admin? (y/N)", required=False, default="n").lower() == "y"
         
         # Show available groups and prompt for group assignment
         groups = await get_available_groups()
@@ -149,13 +154,14 @@ async def main():
         print(f"Username: {username}")
         print(f"Email: {email}")
         print(f"Group: {group_name or '(none)'}")
+        print(f"Admin: {'Yes' if is_admin else 'No'}")
         
         confirm = prompt_input("\nSave? (Y/n)", required=False, default="y")
         if confirm.lower() != "y":
             print_color("Operation cancelled.", YELLOW)
             return
 
-        await create_user(username, email, password, group_name)
+        await create_user(username, email, password, group_name, is_admin)
 
     except Exception as e:
         print_color(f"Error in main execution: {str(e)}", RED)

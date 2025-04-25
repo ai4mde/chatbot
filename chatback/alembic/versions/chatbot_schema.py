@@ -37,6 +37,7 @@ def upgrade():
         sa.Column('username', sa.String(), nullable=False),
         sa.Column('hashed_password', sa.String(), nullable=False),
         sa.Column('is_active', sa.Boolean(), default=True),
+        sa.Column('is_admin', sa.Boolean(), default=False, nullable=False),
         sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()')),
         sa.Column('updated_at', sa.DateTime(timezone=True), onupdate=sa.text('now()')),
         sa.Column('group_id', sa.Integer(), nullable=True),

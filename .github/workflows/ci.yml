@@ -1,0 +1,74 @@
+name: Continuous Integration
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+# Allow only one concurrent run per branch/PR, cancelling older runs
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint_and_test:
+    name: Lint & Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # --- Chatback Steps ---
+      - name: Set up Python 3.13
+        id: setup-python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Install Python dependencies (Chatback)
+        working-directory: ./chatback
+        run: |
+          python -m pip install --upgrade pip
+          # Install main and dev dependencies
+          pip install .[dev]
+
+      - name: Lint with Black (Chatback)
+        working-directory: ./chatback
+        run: black --check .
+
+      - name: Lint with MyPy (Chatback)
+        working-directory: ./chatback
+        run: mypy app # Adjust path if needed, e.g., 'mypy .'
+
+      # Add isort check if desired: isort --check .
+      # - name: Lint with isort (Chatback)
+      #   working-directory: ./chatback
+      #   run: isort --check-only .
+
+      - name: Run tests (Chatback)
+        working-directory: ./chatback
+        run: pytest # Add options like '-v' or '--cov=app' if needed
+
+      # --- Chatfront Steps ---
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v1
+        # with:
+        #   bun-version: latest # Optional: specify Bun version
+
+      - name: Install Node.js dependencies (Chatfront)
+        working-directory: ./chatfront
+        run: bun install
+
+      - name: Lint with ESLint (Chatfront) # Assumes 'lint' script in package.json
+        working-directory: ./chatfront
+        run: bun run lint
+
+      - name: Run Type Check (Chatfront) # Assumes 'typecheck' script in package.json
+        working-directory: ./chatfront
+        run: bun run typecheck
+
+      # Uncomment and adapt if you have frontend tests
+      # - name: Run tests (Chatfront) # Assumes 'test' script in package.json
+      #   working-directory: ./chatfront
+      #   run: bun run test 

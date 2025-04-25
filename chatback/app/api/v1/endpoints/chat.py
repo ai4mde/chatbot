@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Query
-from sqlalchemy import or_
-from sqlalchemy.orm import Session
+from sqlalchemy import or_, select, delete
+from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List, Any, Optional
 from uuid import UUID, uuid4
 import logging
@@ -24,9 +24,9 @@ from app.schemas.chat import (
     ChatResponse
 )
 from app.services.chat.chat_manager import LangChainChatManager
-from app.core.auth import get_current_user
 from openai import OpenAIError
 from app.core.config import settings
+from app.models.group import Group
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -34,7 +34,7 @@ router = APIRouter()
 @router.post("/sessions", response_model=ChatSessionSchema)
 async def create_chat_session(
     *,
-    db: Session = Depends(deps.get_db),
+    db: AsyncSession = Depends(deps.get_db),
     current_user: User = Depends(deps.get_current_active_user),
     chat_session: ChatSessionCreate
 ) -> Any:
@@ -51,8 +51,8 @@ async def create_chat_session(
         
         db_chat_session = ChatSession(**chat_session_data)
         db.add(db_chat_session)
-        db.commit()
-        db.refresh(db_chat_session)
+        await db.commit()
+        await db.refresh(db_chat_session)
 
         # Create initial chat state
         chat_state = ChatState(
@@ -64,7 +64,7 @@ async def create_chat_session(
             updated_at=current_time
         )
         db.add(chat_state)
-        db.commit()
+        await db.commit()
         
         # Store user info in Redis for the session
         try:
@@ -74,20 +74,14 @@ async def create_chat_session(
                 socket_connect_timeout=settings.REDIS_TIMEOUT
             )
             
-            # Get the user's group name
+            # Get the user's group name (should be eagerly loaded)
             group_name = None
-            if current_user.group:
+            if hasattr(current_user, 'group') and current_user.group:
                 group_name = current_user.group.name
-            elif current_user.group_id:
-                # If group relationship not loaded but group_id exists, query it
-                from app.models.group import Group
-                group = db.query(Group).filter(Group.id == current_user.group_id).first()
-                if group:
-                    group_name = group.name
             
-            # Raise error if group name not found
             if not group_name:
-                raise ValueError(f"User {current_user.username} does not have a group assigned")
+                await db.rollback()
+                raise ValueError(f"User {current_user.username} does not have a group assigned.")
             
             # Add group_name to user_info
             user_info = {
@@ -99,7 +93,7 @@ async def create_chat_session(
             # Log the user info being saved
             logger.info(f"Setting initial user info in Redis for session {db_chat_session.id}: {user_info}")
             
-            # Save to Redis with both key formats
+            # Save to Redis (Redis client itself is synchronous here)
             redis_client.set(
                 f"interview:user_info_{db_chat_session.id}",
                 json.dumps(user_info),
@@ -110,18 +104,27 @@ async def create_chat_session(
                 json.dumps(user_info),
                 ex=settings.REDIS_DATA_TTL
             )
+        except ValueError as ve:
+            # Handle the specific group not found error
+            logger.error(f"User group configuration error for session {db_chat_session.id}: {str(ve)}")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=str(ve)
+            )
         except Exception as e:
             # Rollback the session creation if we can't store user info
-            db.rollback()
-            logger.error(f"Could not store user info in Redis: {str(e)}")
+            await db.rollback()
+            logger.error(f"Could not store user info in Redis for session {db_chat_session.id}: {str(e)}")
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Could not create chat session: {str(e)}"
+                detail=f"Could not create chat session due to Redis error: {str(e)}"
             )
         
         return db_chat_session
+    except HTTPException:
+        raise
     except Exception as e:
-        db.rollback()
+        await db.rollback()
         logger.error(f"Error creating chat session: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -130,7 +133,7 @@ async def create_chat_session(
 
 @router.get("/sessions", response_model=List[ChatSessionSchema])
 async def get_chat_sessions(
-    db: Session = Depends(deps.get_db),
+    db: AsyncSession = Depends(deps.get_db),
     current_user: User = Depends(deps.get_current_active_user),
     skip: int = 0,
     limit: int = 10
@@ -141,15 +144,16 @@ async def get_chat_sessions(
     try:
         logger.info(f"Fetching sessions for user {current_user.id}")
         
-        # Explicitly select all fields to ensure they're properly loaded
-        sessions = (
-            db.query(ChatSession)
-            .filter(ChatSession.user_id == current_user.id)
-            .order_by(ChatSession.created_at.desc())  # Most recent first
+        # Use SQLAlchemy 2.0 select syntax
+        stmt = (
+            select(ChatSession)
+            .where(ChatSession.user_id == current_user.id)
+            .order_by(ChatSession.created_at.desc())
             .offset(skip)
             .limit(limit)
-            .all()
         )
+        result = await db.execute(stmt)
+        sessions = result.scalars().all()
         
         # Verify that datetime fields are not None
         for session in sessions:
@@ -171,20 +175,21 @@ async def get_chat_sessions(
 @router.get("/sessions/{session_id}", response_model=ChatSessionSchema)
 async def get_chat_session(
     session_id: int,
-    db: Session = Depends(deps.get_db),
+    db: AsyncSession = Depends(deps.get_db),
     current_user: User = Depends(deps.get_current_active_user)
 ) -> Any:
     """
     Get a specific chat session.
     """
-    session = (
-        db.query(ChatSession)
-        .filter(
+    stmt = (
+        select(ChatSession)
+        .where(
             ChatSession.id == session_id,
             ChatSession.user_id == current_user.id
         )
-        .first()
     )
+    result = await db.execute(stmt)
+    session = result.scalars().first()
     if not session:
         raise HTTPException(status_code=404, detail="Chat session not found")
     return session
@@ -194,7 +199,7 @@ async def create_message(
     *,
     session_id: int,
     message_in: ChatMessageCreate,
-    db: Session = Depends(deps.get_db),
+    db: AsyncSession = Depends(deps.get_db),
     current_user: User = Depends(deps.get_current_active_user)
 ) -> Any:
     """
@@ -204,14 +209,15 @@ async def create_message(
         logger.info(f"Processing message for session {session_id}")
         
         # Verify session exists and belongs to user
-        session = (
-            db.query(ChatSession)
-            .filter(
+        stmt_session = (
+            select(ChatSession)
+            .where(
                 ChatSession.id == session_id,
                 ChatSession.user_id == current_user.id
             )
-            .first()
         )
+        result_session = await db.execute(stmt_session)
+        session = result_session.scalars().first()
         if not session:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -225,20 +231,13 @@ async def create_message(
             socket_connect_timeout=settings.REDIS_TIMEOUT
         )
         
-        # Get the user's group name
+        # Get the user's group name (should be eagerly loaded)
         group_name = None
-        if current_user.group:
+        if hasattr(current_user, 'group') and current_user.group:
             group_name = current_user.group.name
-        elif current_user.group_id:
-            # If group relationship not loaded but group_id exists, query it
-            from app.models.group import Group
-            group = db.query(Group).filter(Group.id == current_user.group_id).first()
-            if group:
-                group_name = group.name
         
-        # Raise error if group name not found
         if not group_name:
-            raise ValueError(f"User {current_user.username} does not have a group assigned")
+            raise ValueError(f"User {current_user.username} does not have a group assigned.")
         
         # Add group_name to user_info
         user_info = {
@@ -272,7 +271,7 @@ async def create_message(
             message_uuid=message_in.message_uuid
         )
         db.add(user_message)
-        db.commit()
+        await db.commit()
 
         # Initialize LangChain chat manager
         chat_manager = LangChainChatManager(str(session_id), current_user.username)
@@ -294,7 +293,7 @@ async def create_message(
             message_uuid=ai_message_uuid
         )
         db.add(ai_message)
-        db.commit()
+        await db.commit()
 
         return ChatResponse(
             message=ai_response,
@@ -307,7 +306,7 @@ async def create_message(
         raise
     except Exception as e:
         logger.error(f"Error processing message: {str(e)}", exc_info=True)
-        db.rollback()
+        await db.rollback()
         raise HTTPException(
             status_code=500,
             detail=f"Could not process message: {str(e)}"
@@ -316,7 +315,7 @@ async def create_message(
 @router.delete("/sessions/{session_id}")
 async def delete_chat_session(
     session_id: int,
-    db: Session = Depends(deps.get_db),
+    db: AsyncSession = Depends(deps.get_db),
     current_user: User = Depends(deps.get_current_active_user)
 ) -> Any:
     """
@@ -324,22 +323,25 @@ async def delete_chat_session(
     """
     try:
         # Find the session
-        session = (
-            db.query(ChatSession)
-            .filter(
+        stmt_session = (
+            select(ChatSession)
+            .where(
                 ChatSession.id == session_id,
                 ChatSession.user_id == current_user.id
             )
-            .first()
         )
+        result_session = await db.execute(stmt_session)
+        session = result_session.scalars().first()
         if not session:
             raise HTTPException(status_code=404, detail="Chat session not found")
         
         # Delete chat messages
-        db.query(ChatMessage).filter(ChatMessage.session_id == session_id).delete()
+        stmt_del_msgs = delete(ChatMessage).where(ChatMessage.session_id == session_id)
+        await db.execute(stmt_del_msgs)
         
         # Delete chat state
-        db.query(ChatState).filter(ChatState.session_id == session_id).delete()
+        stmt_del_state = delete(ChatState).where(ChatState.session_id == session_id)
+        await db.execute(stmt_del_state)
         
         # Clean up Redis data
         redis_keys = [
@@ -369,14 +371,14 @@ async def delete_chat_session(
                     time.sleep(settings.REDIS_RETRY_DELAY)
         
         # Delete the session
-        db.delete(session)
-        db.commit()
+        await db.delete(session)
+        await db.commit()
         
         return {"message": "Chat session and associated data deleted successfully"}
         
     except Exception as e:
         logger.error(f"Error deleting chat session: {str(e)}")
-        db.rollback()
+        await db.rollback()
         raise HTTPException(
             status_code=500,
             detail=f"Could not delete chat session: {str(e)}"
@@ -387,7 +389,7 @@ async def update_chat_session(
     *,
     session_id: int,
     session_update: ChatSessionUpdate,
-    db: Session = Depends(deps.get_db),
+    db: AsyncSession = Depends(deps.get_db),
     current_user: User = Depends(deps.get_current_active_user)
 ) -> Any:
     """
@@ -395,13 +397,14 @@ async def update_chat_session(
     """
     try:
         session = (
-            db.query(ChatSession)
-            .filter(
+            select(ChatSession)
+            .where(
                 ChatSession.id == session_id,
                 ChatSession.user_id == current_user.id
             )
-            .first()
         )
+        result = await db.execute(session)
+        session = result.scalars().first()
         if not session:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -409,8 +412,10 @@ async def update_chat_session(
             )
         
         session.title = session_update.title
-        db.commit()
-        db.refresh(session)
+        session.updated_at = datetime.utcnow()
+        
+        await db.commit()
+        await db.refresh(session)
         return session
     except HTTPException:
         raise
@@ -424,7 +429,7 @@ async def update_chat_session(
 @router.get("/sessions/{session_id}/messages", response_model=List[ChatMessageSchema])
 async def get_chat_messages(
     session_id: int,
-    db: Session = Depends(deps.get_db),
+    db: AsyncSession = Depends(deps.get_db),
     current_user: User = Depends(deps.get_current_active_user),
     skip: int = Query(0, ge=0),
     limit: int = Query(20, ge=1, le=100)
@@ -433,15 +438,15 @@ async def get_chat_messages(
         logger.info(f"Getting messages for session {session_id}")
         
         # Verify session exists and belongs to user
-        session = (
-            db.query(ChatSession)
-            .filter(
+        stmt_session = (
+            select(ChatSession.id)
+            .where(
                 ChatSession.id == session_id,
                 ChatSession.user_id == current_user.id
             )
-            .first()
         )
-        if not session:
+        result_session = await db.execute(stmt_session)
+        if not result_session.scalars().first():
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Chat session not found"
@@ -454,18 +459,11 @@ async def get_chat_messages(
             socket_connect_timeout=settings.REDIS_TIMEOUT
         )
         
-        # Get the user's group name
+        # Get the user's group name (should be eagerly loaded)
         group_name = None
-        if current_user.group:
+        if hasattr(current_user, 'group') and current_user.group:
             group_name = current_user.group.name
-        elif current_user.group_id:
-            # If group relationship not loaded but group_id exists, query it
-            from app.models.group import Group
-            group = db.query(Group).filter(Group.id == current_user.group_id).first()
-            if group:
-                group_name = group.name
         
-        # Raise error if group name not found
         if not group_name:
             raise ValueError(f"User {current_user.username} does not have a group assigned")
         
@@ -497,11 +495,14 @@ async def get_chat_messages(
         logger.info(f"Current progress: {current_progress}%")
         
         messages = (
-            db.query(ChatMessage)
-            .filter(ChatMessage.session_id == session_id)
+            select(ChatMessage)
+            .where(ChatMessage.session_id == session_id)
             .order_by(ChatMessage.created_at.asc())
-            .all()
+            .offset(skip)
+            .limit(limit)
         )
+        result_msgs = await db.execute(messages)
+        messages = result_msgs.scalars().all()
         
         # Find last assistant message
         last_assistant_msg = next(
@@ -535,7 +536,7 @@ async def get_chat_messages(
 async def delete_message(
     session_id: int,
     message_id: int,
-    db: Session = Depends(deps.get_db),
+    db: AsyncSession = Depends(deps.get_db),
     current_user: User = Depends(deps.get_current_active_user)
 ) -> Any:
     """
@@ -543,37 +544,34 @@ async def delete_message(
     """
     try:
         # Verify session exists and belongs to user
-        session = (
-            db.query(ChatSession)
-            .filter(
+        stmt_session = (
+            select(ChatSession.id)
+            .where(
                 ChatSession.id == session_id,
                 ChatSession.user_id == current_user.id
             )
-            .first()
         )
-        if not session:
+        result_session = await db.execute(stmt_session)
+        if not result_session.scalars().first():
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Chat session not found"
             )
         
         # Find and delete the message
-        message = (
-            db.query(ChatMessage)
-            .filter(
+        stmt_del = (
+            delete(ChatMessage)
+            .where(
                 ChatMessage.id == message_id,
                 ChatMessage.session_id == session_id
             )
-            .first()
         )
-        if not message:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Message not found"
-            )
+        result = await db.execute(stmt_del)
         
-        db.delete(message)
-        db.commit()
+        if result.rowcount == 0:
+             raise HTTPException(status_code=404, detail="Message not found")
+
+        await db.commit()
         return {"message": "Message deleted successfully"}
     except HTTPException:
         raise
@@ -587,7 +585,7 @@ async def delete_message(
 @router.get("/search", response_model=List[ChatMessageSchema])
 async def search_messages(
     query: str,
-    db: Session = Depends(deps.get_db),
+    db: AsyncSession = Depends(deps.get_db),
     current_user: User = Depends(deps.get_current_active_user),
     skip: int = Query(0, ge=0),
     limit: int = Query(20, ge=1, le=100)
@@ -597,7 +595,7 @@ async def search_messages(
     """
     try:
         messages = (
-            db.query(ChatMessage)
+            select(ChatMessage)
             .join(ChatSession)
             .filter(
                 ChatSession.user_id == current_user.id,
@@ -609,8 +607,9 @@ async def search_messages(
             .order_by(ChatMessage.created_at.desc())
             .offset(skip)
             .limit(limit)
-            .all()
         )
+        result = await db.execute(messages)
+        messages = result.scalars().all()
         return messages
     except Exception as e:
         logger.error(f"Error searching messages: {str(e)}")
@@ -653,7 +652,7 @@ async def get_ai_response(content: str) -> str:
 @router.post("/send", response_model=ChatResponse)
 async def send_message(
     *,
-    db: Session = Depends(deps.get_db),
+    db: AsyncSession = Depends(deps.get_db),
     message_in: ChatMessageCreate,
     current_user: User = Depends(deps.get_current_active_user)
 ) -> Any:
@@ -671,7 +670,7 @@ async def send_message(
             message_uuid=message_in.message_uuid
         )
         db.add(user_message)
-        db.commit()
+        await db.commit()
 
         # Get AI response
         try:
@@ -691,7 +690,7 @@ async def send_message(
             message_uuid=str(uuid.uuid4())
         )
         db.add(ai_message)
-        db.commit()
+        await db.commit()
 
         return {
             "message": ai_response,
@@ -701,7 +700,7 @@ async def send_message(
 
     except Exception as e:
         logger.error(f"Error processing message: {str(e)}", exc_info=True)
-        db.rollback()
+        await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=str(e)
