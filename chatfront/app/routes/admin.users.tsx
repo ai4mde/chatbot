@@ -244,6 +244,21 @@ type ActionResponse =
   | null; // Can be null if no action was taken or on initial load
 
 export async function loader({ request }: LoaderFunctionArgs): Promise<Response> {
+  const userSession = await authenticator.isAuthenticated(request); // Get session data
+  
+  // Check for authentication AND admin privileges
+  if (!userSession?.access_token) {
+    // Not authenticated, redirect to login or return error
+    // Depending on overall admin auth flow, redirect might be better
+    console.error("Loader: Authentication required.");
+    // return redirect("/admin/login"); // Option: Redirect
+    return json<LoaderData>({ users: [], groups: [], error: "Authentication required." }, { status: 401 });
+  }
+  if (!userSession.is_admin) {
+    console.error("Loader: Admin privileges required.");
+    return json<LoaderData>({ users: [], groups: [], error: "Admin privileges required." }, { status: 403 }); // Forbidden
+  }
+
   try {
     // Fetch users and groups in parallel
     const [users, groups] = await Promise.all([
@@ -265,9 +280,14 @@ export async function action({ request }: ActionFunctionArgs) {
   const actionType = formData.get("_action");
   const userSession = await authenticator.isAuthenticated(request);
 
+  // Check for authentication AND admin privileges
   if (!userSession?.access_token) {
     return json({ error: "Authentication required" }, { status: 401 });
   }
+  if (!userSession.is_admin) {
+    return json({ error: "Admin privileges required" }, { status: 403 }); // Forbidden
+  }
+
   const token = userSession.access_token;
 
   // --- Handle Delete User --- 
@@ -356,32 +376,31 @@ export async function action({ request }: ActionFunctionArgs) {
 }
 
 export default function AdminUsersPage() {
-  const { users, groups, error } = useLoaderData<LoaderData>();
-  // Use the specific type for actionData
-  const actionData = useActionData<ActionResponse>(); 
+  const loaderData = useLoaderData<typeof loader>();
+  const actionData = useActionData<ActionResponse>();
   const navigation = useNavigation();
   const { toast } = useToast();
   const revalidator = useRevalidator();
 
-  const isSubmitting = navigation.state === "submitting";
-
-  // Effect to show toast messages based on actionData
+  // Effect to show toast messages based on actionData and revalidate
   useEffect(() => {
-    // Use optional chaining and type checking
+    // Use explicit type guards for the union type
     if (actionData && 'successMessage' in actionData && actionData.successMessage) {
       toast({ title: "Success", description: actionData.successMessage });
       revalidator.revalidate(); // Revalidate data on success
-      // TODO: Close the dialog if it's open (needs state management or ref)
-      // One way: Pass revalidator state or actionData down to dialog?
     } else if (actionData && 'formError' in actionData && actionData.formError) {
-      toast({ variant: "destructive", title: "Error", description: actionData.formError });
-    } else if (actionData && 'error' in actionData && actionData.error) { // Handle general error from auth check
-       toast({ variant: "destructive", title: "Auth Error", description: actionData.error });
+      toast({ title: "Form Error", description: actionData.formError, variant: "destructive" });
+    } else if (actionData && 'error' in actionData && actionData.error) {
+      toast({ title: "Error", description: actionData.error, variant: "destructive" });
+    } else if (actionData && 'ok' in actionData && actionData.ok === true && navigation.state === 'idle') {
+      // Specific check for delete success (ok: true)
+      toast({ title: "Success", description: "User deleted successfully." });
+      revalidator.revalidate(); // Revalidate after successful deletion
     }
-  }, [actionData, toast, revalidator]);
+  }, [actionData, toast, revalidator, navigation.state]);
 
   const table = useReactTable({
-    data: users ?? [], // Provide default empty array
+    data: loaderData.users ?? [], // Provide default empty array
     columns,
     getCoreRowModel: getCoreRowModel(),
     getPaginationRowModel: getPaginationRowModel(), // Enable pagination
@@ -390,24 +409,37 @@ export default function AdminUsersPage() {
             pageSize: 10, // Default page size
         },
     },
+    enableRowSelection: true, // Example: enable row selection if needed
   });
 
-  if (error) {
-    return <p className="text-destructive">Error loading page data: {error}</p>;
+  // Error handling for loader
+  if (loaderData.error) {
+    return <div className="text-red-500 p-4">Error loading users: {loaderData.error}</div>;
   }
 
+  const users = loaderData.users ?? [];
+  const groups = loaderData.groups ?? []; // Get groups from loader data
+
   return (
-    <div className="w-full">
-      <div className="flex justify-between items-center py-4">
-        <h1 className="text-2xl font-bold">User Management</h1>
-        {/* Wrap the Button with the Dialog Trigger */}
-        <CreateUserDialog groups={groups ?? []}> 
-          <Button disabled={isSubmitting}>
-            {isSubmitting && navigation.formData?.get('_action') === 'createUser' 
-              ? "Creating..." 
-              : "Create User"}
-          </Button>
-        </CreateUserDialog>
+    <div className="container mx-auto py-10">
+      <div className="flex justify-between items-center mb-4">
+        <h1 className="text-2xl font-bold">Manage Users</h1>
+        {/* Test with plain HTML button again */}
+        <button 
+          type="button"
+          className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
+          onClick={() => {
+            console.log('Plain HTML Button Clicked (Local Test)!');
+            window.alert('Plain HTML Button Clicked (Local Test)!');
+          }}
+        >
+          Create User (Plain HTML Test)
+        </button>
+        {/* Keep the Shadcn one commented out for now 
+        <CreateUserDialog groups={groups}>
+          <Button>Create User</Button>
+        </CreateUserDialog> 
+        */}
       </div>
       <div className="rounded-md border">
         <Table>

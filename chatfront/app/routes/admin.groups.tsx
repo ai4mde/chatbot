@@ -1,9 +1,11 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { 
   Outlet, 
   useLoaderData, 
   Form, // Import Form for delete action
-  // TODO: Add useActionData, useNavigation, useRevalidator for actions
+  useActionData,
+  useNavigation,
+  useRevalidator,
 } from "@remix-run/react";
 import { LoaderFunctionArgs, ActionFunctionArgs, MetaFunction, redirect } from "@remix-run/node";
 import { json } from "@remix-run/server-runtime";
@@ -42,7 +44,8 @@ import {
   DropdownMenuTrigger,
 } from "~/components/ui/dropdown-menu";
 import { MoreHorizontal } from "lucide-react";
-// TODO: Import useToast
+import { useToast } from "~/components/ui/use-toast";
+import { CreateGroupDialog } from "~/components/admin/CreateGroupDialog";
 
 // Backend URL
 const CHATBACK_URL = process.env.CHATBACK_URL || 'http://localhost:8000';
@@ -164,17 +167,30 @@ export async function loader({ request }: LoaderFunctionArgs): Promise<Response>
   }
 }
 
-// Action function to handle group deletion
-export async function action({ request }: ActionFunctionArgs) {
+// Define a type for the action response (similar to admin.users)
+type ActionResponse = 
+  | { successMessage: string; formError?: never; error?: never }
+  | { formError: string; successMessage?: never; error?: never }
+  | { error: string; successMessage?: never; formError?: never }
+  | null;
+
+// Action function to handle group deletion AND creation
+export async function action({ request }: ActionFunctionArgs): Promise<Response> {
   const formData = await request.formData();
   const actionType = formData.get("_action");
   const userSession = await authenticator.isAuthenticated(request);
 
+  // Auth Check (add admin check too if necessary, depending on backend requirement)
   if (!userSession?.access_token) {
     return json({ error: "Authentication required" }, { status: 401 });
   }
+  // Add admin check if needed:
+  // if (!userSession.is_admin) {
+  //   return json({ error: "Admin privileges required" }, { status: 403 });
+  // }
   const token = userSession.access_token;
 
+  // --- Handle Delete Group --- 
   if (actionType === "deleteGroup") {
     const groupId = formData.get("groupId");
     if (typeof groupId !== "string") {
@@ -189,25 +205,96 @@ export async function action({ request }: ActionFunctionArgs) {
       });
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ detail: "Failed to delete group" }));
+        console.error("Delete group failed:", errorData);
         throw new Error(errorData.detail || "Failed to delete group");
       }
-      return json({ successMessage: `Group ${groupId} deleted.` }); // TODO: Add toast feedback
+      console.log(`Group ${groupId} deleted successfully.`);
+      return json({ successMessage: `Group ${groupId} deleted successfully.` });
     } catch (error) {
+      console.error("Failed to delete group:", error);
       const message = error instanceof Error ? error.message : "Unknown error";
       return json({ formError: `Failed to delete group: ${message}` }, { status: 500 });
     }
   }
 
+  // --- Handle Create Group --- 
+  if (actionType === "createGroup") {
+    const name = formData.get("name") as string;
+    const description = formData.get("description") as string | undefined;
+
+    // Basic validation (more can be added, zod schema used client-side)
+    if (!name) {
+      return json({ formError: "Group name is required." }, { status: 400 });
+    }
+
+    const backendUrl = `${CHATBACK_URL}/api/v1/admin/groups`;
+    try {
+      console.log("Attempting to create group:", { name, description });
+      const response = await fetch(backendUrl, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: JSON.stringify({
+          name,
+          description: description || null, // Send null if empty
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ detail: "Failed to create group" }));
+        console.error("Create group failed:", errorData);
+        // Try to provide a more specific error if possible
+        const detail = errorData?.detail;
+        let errorMessage = "Failed to create group";
+        if (typeof detail === 'string') {
+          errorMessage = detail;
+        } else if (Array.isArray(detail)) {
+          // Handle validation errors like FastAPI returns
+          errorMessage = detail.map((err: any) => `${err.loc?.join(' -> ') ?? 'field'}: ${err.msg}`).join(", ");
+        }
+        throw new Error(errorMessage);
+      }
+      
+      const newGroup = await response.json();
+      console.log("Group created successfully:", newGroup);
+      return json({ successMessage: `Group '${name}' created successfully.` });
+
+    } catch (error) {
+      console.error("Failed to create group:", error);
+      const message = error instanceof Error ? error.message : "Unknown error";
+      // Return error message to be displayed in the form/toast
+      return json({ formError: `Failed to create group: ${message}` }, { status: 500 });
+    }
+  }
+
+  // --- Invalid Action --- 
   return json({ formError: "Invalid action" }, { status: 400 });
 }
 
 // Default component for the groups route
 export default function AdminGroupsPage() {
-  const { groups, error } = useLoaderData<LoaderData>();
-  // TODO: Add actionData, navigation, toast, revalidator hooks
+  const loaderData = useLoaderData<typeof loader>();
+  const actionData = useActionData<ActionResponse>();
+  const navigation = useNavigation();
+  const { toast } = useToast();
+  const revalidator = useRevalidator();
+
+  useEffect(() => {
+    if (actionData && 'successMessage' in actionData && actionData.successMessage) {
+      toast({ title: "Success", description: actionData.successMessage });
+      revalidator.revalidate();
+    } else if (actionData && 'formError' in actionData && actionData.formError) {
+      toast({ title: "Form Error", description: actionData.formError, variant: "destructive" });
+    } else if (actionData && 'error' in actionData && actionData.error) {
+      toast({ title: "Error", description: actionData.error, variant: "destructive" });
+    }
+  }, [actionData, toast, revalidator]);
 
   const table = useReactTable({
-    data: groups ?? [],
+    data: loaderData.groups ?? [],
     columns,
     getCoreRowModel: getCoreRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
@@ -216,18 +303,20 @@ export default function AdminGroupsPage() {
     },
   });
 
-  if (error) {
-    return <p className="text-destructive">Error loading groups: {error}</p>;
+  if (loaderData.error) {
+    return <p className="text-destructive">Error loading groups: {loaderData.error}</p>;
   }
 
+  const groups = loaderData.groups ?? [];
+
   return (
-    <div className="w-full">
-      <div className="flex justify-between items-center py-4">
+    <div className="container mx-auto py-10">
+      <div className="flex justify-between items-center mb-4">
         <h1 className="text-2xl font-bold">Group Management</h1>
-        {/* TODO: Add Create Group Button/Dialog */}
-        <Button>Create Group</Button> 
+        <CreateGroupDialog>
+          <Button>Create Group</Button>
+        </CreateGroupDialog>
       </div>
-      {/* Replace placeholder with the data table */}
       <div className="rounded-md border">
         <Table>
           <TableHeader>
@@ -260,7 +349,6 @@ export default function AdminGroupsPage() {
           </TableBody>
         </Table>
       </div>
-      {/* Pagination Controls */} 
       <div className="flex items-center justify-end space-x-2 py-4">
         <Button
           variant="outline"

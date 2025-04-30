@@ -38,6 +38,7 @@ interface Environment {
   PUBLIC_CHATBACK_URL: string;
   SESSION_SECRET: string;
   SESSION_TIMEOUT_MINUTES: string;
+  NODE_ENV: "development" | "production" | "test";
 }
 
 interface LoaderData {
@@ -47,7 +48,13 @@ interface LoaderData {
 
 declare global {
   interface Window {
-    ENV: Environment;
+    ENV: {
+      PUBLIC_CHATBACK_URL: string;
+      SESSION_SECRET: string;
+      SESSION_TIMEOUT_MINUTES: string;
+      NODE_ENV: "development" | "production" | "test";
+      RUNTIME_ENV: string;
+    };
   }
 }
 
@@ -94,6 +101,9 @@ export async function loader({ request }: LoaderFunctionArgs): Promise<Response>
     PUBLIC_CHATBACK_URL: process.env.PUBLIC_CHATBACK_URL ?? 'http://localhost:8000',
     SESSION_SECRET: process.env.SESSION_SECRET ?? '',
     SESSION_TIMEOUT_MINUTES: process.env.SESSION_TIMEOUT_MINUTES ?? '30',
+    NODE_ENV: (process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'test') 
+                ? process.env.NODE_ENV 
+                : 'production',
   };
 
   return json<LoaderData>(
@@ -145,12 +155,10 @@ export function ErrorBoundary(): JSX.Element {
 
 export default function App(): JSX.Element {
   const { user, ENV } = useLoaderData<typeof loader>();
+  // Restore hooks and handlers
   const navigate = useNavigate();
   const formRef = React.useRef<HTMLFormElement>(null);
-
-  // Memoize the user to prevent unnecessary re-renders
   const memoizedUser = React.useMemo(() => user, [user?.id]);
-
   const handleTimeout = React.useCallback((): void => {
     if (formRef.current) {
       formRef.current.submit();
@@ -163,17 +171,20 @@ export default function App(): JSX.Element {
       <head>
         <meta charSet='utf-8' />
         <meta name='viewport' content='width=device-width, initial-scale=1' />
-        <meta name='color-scheme' content='light dark' />
-        <link rel='icon' type='image/svg+xml' href='/images/logos/logo.svg' />
+        {/* Restore meta tags if they were removed */}
+        <meta name='color-scheme' content='light dark' /> 
+        <link rel='icon' type='image/svg+xml' href='/images/logos/logo.svg' /> 
         <Meta />
         <Links />
       </head>
+      {/* Restore body class */}
       <body className='min-h-screen bg-background font-sans antialiased'>
+        {/* Restore commented out components */}
         <ThemeProvider>
           <div className='relative flex min-h-screen flex-col'>
             <Header user={memoizedUser} />
             <main className='flex-1'>
-              <Outlet context={{ user: memoizedUser }} />
+              <Outlet context={{ user: memoizedUser }} /> {/* Restore context user */}
             </main>
             <Footer />
             {memoizedUser && (
@@ -188,18 +199,17 @@ export default function App(): JSX.Element {
           </div>
         </ThemeProvider>
         <Toaster />
+        {/* --- End Restoration --- */}
+
+        {/* Keep ENV script and Remix scripts */}
         <script
           dangerouslySetInnerHTML={{
-            __html: `window.ENV = ${JSON.stringify({
-              ...ENV,
-              NODE_ENV: process.env.NODE_ENV,
-              RUNTIME_ENV: 'container'
-            })}`
+            __html: `window.ENV = ${JSON.stringify({ ...ENV, RUNTIME_ENV: 'container' })}`
           }}
         />
         <ScrollRestoration />
         <Scripts />
-        {process.env.NODE_ENV === 'development' && <LiveReload />}
+        {ENV.NODE_ENV === 'development' && <LiveReload />}
       </body>
     </html>
   );

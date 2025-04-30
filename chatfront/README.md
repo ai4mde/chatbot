@@ -36,6 +36,8 @@ This directory contains the frontend service (`chatfront`) for the chatbot appli
 ## TODO
 
 *   [ ] Implement comprehensive end-to-end tests (e.g., using Playwright or Cypress).
+* [ ] Fix mic issue
+
 *   [ ] Add unit tests for critical components and utility functions.
 *   [ ] Improve UI/UX based on user feedback.
 *   [ ] Enhance accessibility (a11y) across all components.

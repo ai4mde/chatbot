@@ -56,14 +56,15 @@ export const Header = React.memo(function Header({ user }: HeaderProps): JSX.Ele
               </Link>
             )}
 
-            {user && (
+            {/* TODO: Fix and add diagrams back in */}
+            {/*user && (
               <Button asChild variant='ghost' className='gap-2'>
                 <Link to='/diagrams'>
                   <Box className='h-4 w-4' />
                   Diagrams
                 </Link>
               </Button>
-            )}
+            )}*/}
             
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
