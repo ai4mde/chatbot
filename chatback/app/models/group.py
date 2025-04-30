@@ -3,6 +3,7 @@ from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 from app.db.base_class import Base
 
+
 class Group(Base):
     __tablename__ = "groups"
 
@@ -14,4 +15,4 @@ class Group(Base):
 
     # Relationships
     users = relationship("User", back_populates="group")
-    chat_sessions = relationship("ChatSession", back_populates="group") 
+    chat_sessions = relationship("ChatSession", back_populates="group")

@@ -20,6 +20,7 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
+
 @router.post("/register", response_model=UserSchema)
 def register(
     *,
@@ -38,7 +39,7 @@ def register(
             status_code=400,
             detail="A user with this username already exists.",
         )
-    
+
     user = User(
         email=user_in.email,
         username=user_in.username,
@@ -49,10 +50,11 @@ def register(
     db.refresh(user)
     return user
 
+
 @router.post("/login", response_model=Token)
 async def login(
     db: AsyncSession = Depends(deps.get_db),
-    form_data: OAuth2PasswordRequestForm = Depends()
+    form_data: OAuth2PasswordRequestForm = Depends(),
 ) -> Any:
     """
     OAuth2 compatible token login, get an access token for future requests.
@@ -65,13 +67,15 @@ async def login(
             .options(selectinload(User.group))
             .where(User.username == form_data.username)
         )
-        
+
         async with AsyncSessionLocal() as session:
             # Execute query and get result
             result = await session.execute(stmt)
             user = result.scalar_one_or_none()
 
-            if not user or not security.verify_password(form_data.password, user.hashed_password):
+            if not user or not security.verify_password(
+                form_data.password, user.hashed_password
+            ):
                 logger.warning(f"Login failed for username: {form_data.username}")
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,
@@ -85,11 +89,11 @@ async def login(
                 )
 
             logger.info(f"Successful login for user: {user.username}")
-            
+
             # --- Prepare data for token payload ---
             token_data = {
                 "sub": user.username,
-                "is_admin": user.is_admin  # Add the is_admin flag
+                "is_admin": user.is_admin,  # Add the is_admin flag
                 # You could add other relevant info here too if needed:
                 # "user_id": user.id,
                 # "group_id": user.group_id
@@ -99,12 +103,12 @@ async def login(
             # Create and return token with additional info
             token = Token(
                 access_token=security.create_access_token(
-                    data=token_data # Pass the dictionary with is_admin
+                    data=token_data  # Pass the dictionary with is_admin
                 ),
                 token_type="bearer",
                 id=str(user.id),
                 username=user.username,
-                group_name=user.group.name if user.group else None
+                group_name=user.group.name if user.group else None,
             )
             logger.info(f"Generated token for user: {user.username}")
             return token
@@ -118,18 +122,19 @@ async def login(
             detail="Internal server error",
         )
 
+
 @router.get("/status", response_model=UserStatus)
 async def get_user_status(
-    current_user: User = Depends(deps.get_current_active_user)
+    current_user: User = Depends(deps.get_current_active_user),
 ) -> Any:
     """
     Get current user status.
-    
+
     Requires authentication via Bearer token.
-    
+
     Returns:
         UserStatus: Current user information including id, username, and email
-    
+
     Raises:
         HTTPException: 401 if not authenticated or token is invalid
     """
@@ -137,10 +142,11 @@ async def get_user_status(
         id=current_user.id,
         username=current_user.username,
         email=current_user.email,
-        token=None
+        token=None,
     )
+
 
 @router.post("/logout")
 def logout(response: Response):
     response.delete_cookie("Authorization")
-    return {"message": "Successfully logged out"} 
+    return {"message": "Successfully logged out"}

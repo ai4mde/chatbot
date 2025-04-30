@@ -14,7 +14,7 @@ import uuid
 from unittest.mock import patch, MagicMock, AsyncMock
 
 # Add the parent directory to the path so we can import from app
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 
 # Mock OpenAI API key for testing
 os.environ["OPENAI_API_KEY"] = "sk-test-key-for-mocking"
@@ -24,8 +24,7 @@ from app.services.chat.documents import DocumentWriterAgent, DocumentReviewerAge
 
 # Configure logging
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
 
@@ -36,35 +35,35 @@ SAMPLE_REQUIREMENTS = {
             "id": "FR-001",
             "name": "User Registration",
             "description": "Users should be able to create accounts with email verification",
-            "priority": "High"
+            "priority": "High",
         },
         {
             "id": "FR-002",
             "name": "Product Search",
             "description": "Users should be able to search for products with filtering by faculty",
-            "priority": "High"
+            "priority": "High",
         },
         {
             "id": "FR-003",
             "name": "Shopping Cart",
             "description": "Users should be able to add items to a cart and manage quantities",
-            "priority": "High"
-        }
+            "priority": "High",
+        },
     ],
     "non_functional_requirements": [
         {
             "id": "NFR-001",
             "name": "Web-based Application",
             "description": "System should be accessible through web browsers",
-            "priority": "High"
+            "priority": "High",
         },
         {
             "id": "NFR-002",
             "name": "Mobile Support",
             "description": "System should be responsive and work well on mobile devices",
-            "priority": "High"
-        }
-    ]
+            "priority": "High",
+        },
+    ],
 }
 
 # Sample UML diagrams for testing
@@ -131,20 +130,35 @@ DB --> API: Cart Updated
 API --> UI: 200 OK
 UI --> User: Item Added to Cart
 @enduml
-    """
+    """,
 }
 
 # Sample conversation for testing
 SAMPLE_CONVERSATION = [
-    {"role": "user", "content": "I need an online bookstore for Leiden University students."},
+    {
+        "role": "user",
+        "content": "I need an online bookstore for Leiden University students.",
+    },
     {"role": "assistant", "content": "Could you tell me more about your requirements?"},
-    {"role": "user", "content": "We need a platform where students can buy textbooks, course materials, and academic supplies."},
+    {
+        "role": "user",
+        "content": "We need a platform where students can buy textbooks, course materials, and academic supplies.",
+    },
     {"role": "assistant", "content": "What specific features do you need?"},
-    {"role": "user", "content": "We need user registration, product search with filtering by faculty, shopping cart, checkout with multiple payment methods, and academic bundles for different faculties."},
+    {
+        "role": "user",
+        "content": "We need user registration, product search with filtering by faculty, shopping cart, checkout with multiple payment methods, and academic bundles for different faculties.",
+    },
     {"role": "assistant", "content": "Any specific technical requirements?"},
-    {"role": "user", "content": "It should be a web-based application with mobile support. We also need inventory management for administrators and order tracking for users."},
+    {
+        "role": "user",
+        "content": "It should be a web-based application with mobile support. We also need inventory management for administrators and order tracking for users.",
+    },
     {"role": "assistant", "content": "Any other features you'd like to include?"},
-    {"role": "user", "content": "We'd like to have personalized recommendations based on user preferences and multi-language support for international students."},
+    {
+        "role": "user",
+        "content": "We'd like to have personalized recommendations based on user preferences and multi-language support for international students.",
+    },
 ]
 
 # Mock responses for the LLM
@@ -630,6 +644,7 @@ MOCK_EVALUATION_RESPONSE = """
 }
 """
 
+
 # Create a mock response for OpenAI API
 def create_mock_openai_response(content):
     return {
@@ -639,20 +654,14 @@ def create_mock_openai_response(content):
         "model": "gpt-4o",
         "choices": [
             {
-                "message": {
-                    "role": "assistant",
-                    "content": content
-                },
+                "message": {"role": "assistant", "content": content},
                 "index": 0,
-                "finish_reason": "stop"
+                "finish_reason": "stop",
             }
         ],
-        "usage": {
-            "prompt_tokens": 100,
-            "completion_tokens": 500,
-            "total_tokens": 600
-        }
+        "usage": {"prompt_tokens": 100, "completion_tokens": 500, "total_tokens": 600},
     }
+
 
 async def test_document_writer_agent():
     """Test the document writer agent."""
@@ -660,46 +669,59 @@ async def test_document_writer_agent():
         # Generate a unique session ID for testing
         session_id = f"test-{uuid.uuid4()}"
         username = "test-group"  # Use test-group as the username to match the directory structure
-        
-        print(colored(f"Creating document writer agent for session {session_id}...", "blue"))
-        
+
+        print(
+            colored(
+                f"Creating document writer agent for session {session_id}...", "blue"
+            )
+        )
+
         # Create a mock directory for documentation if it doesn't exist
-        docs_dir = os.path.join(os.environ.get('CHATBOT_DATA_PATH', 'data'), username, "documentation")
+        docs_dir = os.path.join(
+            os.environ.get("CHATBOT_DATA_PATH", "data"), username, "documentation"
+        )
         os.makedirs(docs_dir, exist_ok=True)
         print(colored(f"Using documentation directory: {docs_dir}", "blue"))
-        
+
         # Patch the OpenAI API client at the lowest level
-        with patch('openai.resources.chat.completions.Completions.create') as mock_create:
+        with patch(
+            "openai.resources.chat.completions.Completions.create"
+        ) as mock_create:
             # Configure the mock to return our mock response
-            mock_create.return_value = create_mock_openai_response(MOCK_DOCUMENTATION_RESPONSE)
-            
+            mock_create.return_value = create_mock_openai_response(
+                MOCK_DOCUMENTATION_RESPONSE
+            )
+
             # Make it work with async
             mock_create.side_effect = None
-            mock_create.return_value = create_mock_openai_response(MOCK_DOCUMENTATION_RESPONSE)
+            mock_create.return_value = create_mock_openai_response(
+                MOCK_DOCUMENTATION_RESPONSE
+            )
             mock_create.__aenter__ = AsyncMock(return_value=mock_create)
             mock_create.__aexit__ = AsyncMock(return_value=None)
-            
+
             # Create the agent
             writer_agent = DocumentWriterAgent(session_id, username)
-            
+
             print(colored("Generating technical documentation...", "blue"))
             result = await writer_agent.generate_technical_documentation(
                 project_name="Leiden University Online Bookstore",
                 requirements=SAMPLE_REQUIREMENTS,
                 uml_diagrams=SAMPLE_UML_DIAGRAMS,
-                messages=SAMPLE_CONVERSATION
+                messages=SAMPLE_CONVERSATION,
             )
-        
+
         print(colored("Technical documentation generated successfully!", "green"))
         print(colored(f"Documentation saved to: {result['file_path']}", "green"))
-        
+
         # Return the file path for use in the reviewer test
-        return result['file_path']
-        
+        return result["file_path"]
+
     except Exception as e:
         logger.error(f"Error testing document writer agent: {str(e)}", exc_info=True)
         print(colored(f"Error: {str(e)}", "red"))
         return None
+
 
 async def test_document_reviewer_agent(document_path=None):
     """Test the document reviewer agent."""
@@ -707,91 +729,133 @@ async def test_document_reviewer_agent(document_path=None):
         # Generate a unique session ID for testing
         session_id = f"test-{uuid.uuid4()}"
         username = "test-group"  # Use test-group as the username to match the directory structure
-        
-        print(colored(f"Creating document reviewer agent for session {session_id}...", "blue"))
-        
+
+        print(
+            colored(
+                f"Creating document reviewer agent for session {session_id}...", "blue"
+            )
+        )
+
         # If no document path is provided, create a sample document
         if not document_path:
-            docs_dir = os.path.join(os.environ.get('CHATBOT_DATA_PATH', 'data'), username, "documentation")
+            docs_dir = os.path.join(
+                os.environ.get("CHATBOT_DATA_PATH", "data"), username, "documentation"
+            )
             os.makedirs(docs_dir, exist_ok=True)
             document_path = os.path.join(docs_dir, "sample_doc_for_review.md")
-            
-            with open(document_path, 'w', encoding="utf-8") as f:
+
+            with open(document_path, "w", encoding="utf-8") as f:
                 f.write(MOCK_DOCUMENTATION_RESPONSE)
-            
-            print(colored(f"Created sample document for review: {document_path}", "blue"))
-        
+
+            print(
+                colored(f"Created sample document for review: {document_path}", "blue")
+            )
+
         # Patch the OpenAI API client at the lowest level for review
-        with patch('openai.resources.chat.completions.Completions.create') as mock_create:
+        with patch(
+            "openai.resources.chat.completions.Completions.create"
+        ) as mock_create:
             # Configure the mock to return our mock response
             mock_create.return_value = create_mock_openai_response(MOCK_REVIEW_RESPONSE)
-            
+
             # Make it work with async
             mock_create.side_effect = None
             mock_create.__aenter__ = AsyncMock(return_value=mock_create)
             mock_create.__aexit__ = AsyncMock(return_value=None)
-            
+
             # Create the agent
             reviewer_agent = DocumentReviewerAgent(session_id, username)
-            
+
             print(colored(f"Reviewing document: {document_path}", "blue"))
             review_result = await reviewer_agent.review_document(
-                document_path=document_path,
-                requirements=SAMPLE_REQUIREMENTS
+                document_path=document_path, requirements=SAMPLE_REQUIREMENTS
             )
-        
+
         print(colored("Document review completed successfully!", "green"))
-        print(colored(f"Reviewed document saved to: {review_result['improved_path']}", "green"))
-        
+        print(
+            colored(
+                f"Reviewed document saved to: {review_result['improved_path']}", "green"
+            )
+        )
+
         # Test the document quality evaluation
-        with patch('openai.resources.chat.completions.Completions.create') as mock_create:
+        with patch(
+            "openai.resources.chat.completions.Completions.create"
+        ) as mock_create:
             # Configure the mock to return our mock response
-            mock_create.return_value = create_mock_openai_response(MOCK_EVALUATION_RESPONSE)
-            
+            mock_create.return_value = create_mock_openai_response(
+                MOCK_EVALUATION_RESPONSE
+            )
+
             # Make it work with async
             mock_create.side_effect = None
             mock_create.__aenter__ = AsyncMock(return_value=mock_create)
             mock_create.__aexit__ = AsyncMock(return_value=None)
-            
-            print(colored(f"Evaluating document quality: {review_result['improved_path']}", "blue"))
-            eval_result = await reviewer_agent.evaluate_documentation_quality(
-                document_path=review_result['improved_path']
+
+            print(
+                colored(
+                    f"Evaluating document quality: {review_result['improved_path']}",
+                    "blue",
+                )
             )
-        
+            eval_result = await reviewer_agent.evaluate_documentation_quality(
+                document_path=review_result["improved_path"]
+            )
+
         print(colored("Document quality evaluation completed successfully!", "green"))
         print(colored("Quality scores:", "blue"))
-        
+
         # Print the evaluation scores
-        if 'evaluation' in eval_result and 'scores' in eval_result['evaluation']:
-            scores = eval_result['evaluation']['scores']
+        if "evaluation" in eval_result and "scores" in eval_result["evaluation"]:
+            scores = eval_result["evaluation"]["scores"]
             for criterion, score in scores.items():
-                print(colored(f"  {criterion.replace('_', ' ').title()}: {score}/10", "cyan"))
-        
+                print(
+                    colored(
+                        f"  {criterion.replace('_', ' ').title()}: {score}/10", "cyan"
+                    )
+                )
+
         return True
-        
+
     except Exception as e:
         logger.error(f"Error testing document reviewer agent: {str(e)}", exc_info=True)
         print(colored(f"Error: {str(e)}", "red"))
         return False
 
+
 async def main():
     """Main function to run the tests."""
-    parser = argparse.ArgumentParser(description="Test the Document Writer and Reviewer Agents")
-    parser.add_argument("--test", choices=["writer", "reviewer", "all"], default="all",
-                        help="Which test to run (default: all)")
-    
+    parser = argparse.ArgumentParser(
+        description="Test the Document Writer and Reviewer Agents"
+    )
+    parser.add_argument(
+        "--test",
+        choices=["writer", "reviewer", "all"],
+        default="all",
+        help="Which test to run (default: all)",
+    )
+
     args = parser.parse_args()
-    
+
     document_path = None
-    
+
     if args.test == "writer" or args.test == "all":
-        print(colored("\n=== Testing Document Writer Agent ===", "blue", attrs=["bold"]))
+        print(
+            colored("\n=== Testing Document Writer Agent ===", "blue", attrs=["bold"])
+        )
         document_path = await test_document_writer_agent()
-    
+
     if args.test == "reviewer" or args.test == "all":
-        print(colored("\n=== Testing Document Reviewer Agent ===", "blue", attrs=["bold"]))
+        print(
+            colored("\n=== Testing Document Reviewer Agent ===", "blue", attrs=["bold"])
+        )
         await test_document_reviewer_agent(document_path)
 
+
 if __name__ == "__main__":
-    print(colored("Testing Document Writer and Reviewer Agents...", "blue", attrs=["bold"]))
-    asyncio.run(main()) 
+    print(
+        colored(
+            "Testing Document Writer and Reviewer Agents...", "blue", attrs=["bold"]
+        )
+    )
+    asyncio.run(main())

@@ -11,10 +11,11 @@ logger = logging.getLogger(__name__)
 engine = create_engine(
     settings.DATABASE_URL,
     pool_pre_ping=True,  # Add connection health checks
-    pool_size=5,         # Set connection pool size
-    max_overflow=10      # Maximum number of connections to overflow
+    pool_size=5,  # Set connection pool size
+    max_overflow=10,  # Maximum number of connections to overflow
 )
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
 
 def init_db() -> None:
     """Initialize database with all models"""
@@ -30,10 +31,11 @@ def init_db() -> None:
         logger.error(f"Error creating database tables: {e}")
         raise
 
+
 def get_db():
     """Dependency for getting database session"""
     db = SessionLocal()
     try:
         yield db
     finally:
-        db.close() 
+        db.close()

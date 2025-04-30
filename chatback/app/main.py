@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 app = FastAPI(
     title=settings.PROJECT_NAME,
     version=settings.VERSION,
-    openapi_url=f"{settings.API_V1_STR}/openapi.json"
+    openapi_url=f"{settings.API_V1_STR}/openapi.json",
 )
 
 # Configure CORS
@@ -34,6 +34,7 @@ app.add_middleware(
 
 app.include_router(api_router, prefix=settings.API_V1_STR)
 
+
 @app.on_event("startup")
 async def startup_event():
     logger.info("Initializing database...")
@@ -44,10 +45,12 @@ async def startup_event():
     logger.info(f"QDRANT_PORT: {settings.QDRANT_PORT}")
     logger.info(f"OPENAI_API_KEY exists: {bool(settings.OPENAI_API_KEY)}")
 
+
 @app.get("/")
 async def root():
     return {"message": "Welcome to AI4MDE Chat API"}
 
+
 @app.get("/api/v1/health")
 async def health_check():
-    return {"status": "healthy"} 
+    return {"status": "healthy"}

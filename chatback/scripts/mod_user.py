@@ -18,15 +18,17 @@ SCRIPT_NAME = "Modify User Script"
 SCRIPT_VERSION = "1.0"
 
 # ANSI color codes
-BLUE = '\033[94m'
-GREEN = '\033[92m'
-YELLOW = '\033[93m'
-RED = '\033[91m'
-ENDC = '\033[0m'
+BLUE = "\033[94m"
+GREEN = "\033[92m"
+YELLOW = "\033[93m"
+RED = "\033[91m"
+ENDC = "\033[0m"
+
 
 def print_color(message: str, color: str = BLUE) -> None:
     """Print a colored message."""
     print(f"{color}{message}{ENDC}")
+
 
 def prompt_input(message: str, required: bool = True, default: str = None) -> str:
     """
@@ -38,7 +40,7 @@ def prompt_input(message: str, required: bool = True, default: str = None) -> st
             message = f"{message} [{default}]: "
         else:
             message = f"{message}: "
-        
+
         while True:
             value = input(message).strip()
             if not value:
@@ -54,6 +56,7 @@ def prompt_input(message: str, required: bool = True, default: str = None) -> st
         print_color(f"Error in prompt_input: {str(e)}", RED)
         raise
 
+
 async def get_available_groups(session):
     """Get all available groups."""
     try:
@@ -63,15 +66,14 @@ async def get_available_groups(session):
         print_color(f"Error fetching groups: {str(e)}", RED)
         raise
 
+
 async def list_available_users():
     """List all available users."""
     try:
         async with AsyncSessionLocal() as session:
             async with session.begin():
                 result = await session.execute(
-                    select(User)
-                    .options(selectinload(User.group))
-                    .order_by(User.email)
+                    select(User).options(selectinload(User.group)).order_by(User.email)
                 )
                 users = result.scalars().all()
 
@@ -81,11 +83,13 @@ async def list_available_users():
 
                 print("\nAvailable Users:")
                 print("=" * 80)
-                print(f"{'ID':<5} {'Username':<15} {'Email':<30} {'Group':<15} {'Active':<8} {'Admin'}")
+                print(
+                    f"{'ID':<5} {'Username':<15} {'Email':<30} {'Group':<15} {'Active':<8} {'Admin'}"
+                )
                 print("-" * 80)
 
                 for user in users:
-                    group_name = user.group.name if user.group else 'No Group'
+                    group_name = user.group.name if user.group else "No Group"
                     active_status = "Yes" if user.is_active else "No"
                     admin_status = "Yes" if user.is_admin else "No"
                     print(
@@ -99,6 +103,7 @@ async def list_available_users():
         print_color(f"Error listing users: {str(e)}", RED)
         raise
 
+
 async def get_user_by_username(session, username: str):
     """Get user by username with group preloaded."""
     try:
@@ -111,6 +116,7 @@ async def get_user_by_username(session, username: str):
     except Exception as e:
         print_color(f"Error looking up user: {str(e)}", RED)
         raise
+
 
 async def modify_user(username: str):
     """Modify a user's details."""
@@ -132,10 +138,17 @@ async def modify_user(username: str):
 
                 # Get new values
                 new_email = prompt_input("New email", required=False) or user.email
-                new_username = prompt_input("New username", required=False) or user.username
-                
+                new_username = (
+                    prompt_input("New username", required=False) or user.username
+                )
+
                 # Handle password change
-                if prompt_input("Change password? (y/N)", required=False, default="n").lower() == "y":
+                if (
+                    prompt_input(
+                        "Change password? (y/N)", required=False, default="n"
+                    ).lower()
+                    == "y"
+                ):
                     new_password = prompt_input("New password")
                     user.hashed_password = get_password_hash(new_password)
 
@@ -145,33 +158,36 @@ async def modify_user(username: str):
                     print("\nAvailable groups:")
                     for group in groups:
                         print(f"- {group.name}")
-                    
-                    new_group_name = prompt_input("New group name (or 'none' to remove)", required=False)
+
+                    new_group_name = prompt_input(
+                        "New group name (or 'none' to remove)", required=False
+                    )
                     if new_group_name:
                         if new_group_name.lower() == "none":
                             user.group = None
                         else:
-                            new_group = next((g for g in groups if g.name == new_group_name), None)
+                            new_group = next(
+                                (g for g in groups if g.name == new_group_name), None
+                            )
                             if new_group:
                                 user.group = new_group
                             else:
-                                print_color(f"Group '{new_group_name}' not found. Group unchanged.", YELLOW)
+                                print_color(
+                                    f"Group '{new_group_name}' not found. Group unchanged.",
+                                    YELLOW,
+                                )
 
                 # Handle active status
                 current_status = "y" if user.is_active else "n"
                 new_status = prompt_input(
-                    "Active? (Y/N)",
-                    required=False,
-                    default=current_status
+                    "Active? (Y/N)", required=False, default=current_status
                 )
                 user.is_active = new_status.lower() == "y"
 
                 # Handle admin status
                 current_admin_status = "y" if user.is_admin else "n"
                 new_admin_status = prompt_input(
-                    "Admin? (Y/N)",
-                    required=False,
-                    default=current_admin_status
+                    "Admin? (Y/N)", required=False, default=current_admin_status
                 )
                 user.is_admin = new_admin_status.lower() == "y"
 
@@ -187,7 +203,9 @@ async def modify_user(username: str):
                 print(f"Active: {'Yes' if user.is_active else 'No'}")
                 print(f"Admin: {'Yes' if user.is_admin else 'No'}")
 
-                confirm = prompt_input("\nSave changes? (Y/n)", required=False, default="y")
+                confirm = prompt_input(
+                    "\nSave changes? (Y/n)", required=False, default="y"
+                )
                 if confirm.lower() != "y":
                     print_color("Operation cancelled.", YELLOW)
                     return False
@@ -200,13 +218,14 @@ async def modify_user(username: str):
         print_color(f"Error modifying user: {str(e)}", RED)
         raise
 
+
 async def main():
     """Main script execution flow."""
     try:
         print_color(f"\n=== {SCRIPT_NAME} v{SCRIPT_VERSION} ===\n", BLUE)
-        
+
         await list_available_users()
-        
+
         username = prompt_input("Enter username to modify")
         await modify_user(username)
 
@@ -214,9 +233,10 @@ async def main():
         print_color(f"Error in main execution: {str(e)}", RED)
         sys.exit(1)
 
+
 if __name__ == "__main__":
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
         print_color("\nOperation cancelled by user.", YELLOW)
-        sys.exit(0) 
+        sys.exit(0)

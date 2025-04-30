@@ -14,15 +14,17 @@ from app.models import User
 from app.core.security import verify_password
 
 # ANSI color codes
-BLUE = '\033[94m'
-GREEN = '\033[92m'
-YELLOW = '\033[93m'
-RED = '\033[91m'
-ENDC = '\033[0m'
+BLUE = "\033[94m"
+GREEN = "\033[92m"
+YELLOW = "\033[93m"
+RED = "\033[91m"
+ENDC = "\033[0m"
+
 
 def print_color(message: str, color: str = BLUE) -> None:
     """Print a colored message."""
     print(f"{color}{message}{ENDC}")
+
 
 async def verify_credentials(username: str, password: str):
     """Verify user credentials directly."""
@@ -58,6 +60,7 @@ async def verify_credentials(username: str, password: str):
         print_color(f"Error verifying credentials: {str(e)}", RED)
         raise
 
+
 async def main():
     if len(sys.argv) != 3:
         print("Usage: python verify_user.py <username> <password>")
@@ -69,9 +72,10 @@ async def main():
     print_color(f"\n=== Verifying Credentials ===\n", BLUE)
     await verify_credentials(username, password)
 
+
 if __name__ == "__main__":
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
         print_color("\nOperation cancelled by user.", YELLOW)
-        sys.exit(0) 
+        sys.exit(0)

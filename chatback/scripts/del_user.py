@@ -17,15 +17,17 @@ SCRIPT_NAME = "Delete User Script"
 SCRIPT_VERSION = "1.0"
 
 # ANSI color codes
-BLUE = '\033[94m'
-GREEN = '\033[92m'
-YELLOW = '\033[93m'
-RED = '\033[91m'
-ENDC = '\033[0m'
+BLUE = "\033[94m"
+GREEN = "\033[92m"
+YELLOW = "\033[93m"
+RED = "\033[91m"
+ENDC = "\033[0m"
+
 
 def print_color(message: str, color: str = BLUE) -> None:
     """Print a colored message."""
     print(f"{color}{message}{ENDC}")
+
 
 def prompt_input(message: str, required: bool = True, default: str = None) -> str:
     """
@@ -37,7 +39,7 @@ def prompt_input(message: str, required: bool = True, default: str = None) -> st
             message = f"{message} [{default}]: "
         else:
             message = f"{message}: "
-        
+
         while True:
             value = input(message).strip()
             if not value:
@@ -53,15 +55,14 @@ def prompt_input(message: str, required: bool = True, default: str = None) -> st
         print_color(f"Error in prompt_input: {str(e)}", RED)
         raise
 
+
 async def list_available_users():
     """List all available users."""
     try:
         async with AsyncSessionLocal() as session:
             async with session.begin():
                 result = await session.execute(
-                    select(User)
-                    .options(selectinload(User.group))
-                    .order_by(User.email)
+                    select(User).options(selectinload(User.group)).order_by(User.email)
                 )
                 users = result.scalars().all()
 
@@ -71,11 +72,13 @@ async def list_available_users():
 
                 print("\nAvailable Users:")
                 print("=" * 120)
-                print(f"{'ID':<5} {'Username':<20} {'Email':<30} {'Group':<20} {'Active'}")
+                print(
+                    f"{'ID':<5} {'Username':<20} {'Email':<30} {'Group':<20} {'Active'}"
+                )
                 print("-" * 120)
 
                 for user in users:
-                    group_name = user.group.name if user.group else 'No Group'
+                    group_name = user.group.name if user.group else "No Group"
                     active_status = "Yes" if user.is_active else "No"
                     print(
                         f"{user.id:<5} {user.username:<20} {user.email:<30} "
@@ -87,6 +90,7 @@ async def list_available_users():
     except Exception as e:
         print_color(f"Error listing users: {str(e)}", RED)
         raise
+
 
 async def get_user_by_username(session, username: str):
     """Get user by username with group preloaded."""
@@ -100,6 +104,7 @@ async def get_user_by_username(session, username: str):
     except Exception as e:
         print_color(f"Error looking up user: {str(e)}", RED)
         raise
+
 
 async def delete_user(username: str):
     """Delete a user by username."""
@@ -119,7 +124,11 @@ async def delete_user(username: str):
                 print(f"Group: {user.group.name if user.group else 'No Group'}")
                 print(f"Active: {'Yes' if user.is_active else 'No'}")
 
-                confirm = prompt_input("\nAre you sure you want to delete this user? (y/N)", required=False, default="n")
+                confirm = prompt_input(
+                    "\nAre you sure you want to delete this user? (y/N)",
+                    required=False,
+                    default="n",
+                )
                 if confirm.lower() != "y":
                     print_color("Operation cancelled.", YELLOW)
                     return False
@@ -133,13 +142,14 @@ async def delete_user(username: str):
         print_color(f"Error deleting user: {str(e)}", RED)
         raise
 
+
 async def main():
     """Main script execution flow."""
     try:
         print_color(f"\n=== {SCRIPT_NAME} v{SCRIPT_VERSION} ===\n", BLUE)
-        
+
         await list_available_users()
-        
+
         username = prompt_input("Enter username to delete")
         await delete_user(username)
 
@@ -147,9 +157,10 @@ async def main():
         print_color(f"Error in main execution: {str(e)}", RED)
         sys.exit(1)
 
+
 if __name__ == "__main__":
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
         print_color("\nOperation cancelled by user.", YELLOW)
-        sys.exit(0) 
+        sys.exit(0)

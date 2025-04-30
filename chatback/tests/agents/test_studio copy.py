@@ -16,18 +16,21 @@ sys.path.insert(0, project_root)
 # Try to import termcolor, use fallback if not available
 try:
     from termcolor import colored
+
     HAS_TERMCOLOR = True
 except ImportError:
     print("Note: Install termcolor for colored output: pip install termcolor")
     print("Continuing with monochrome output...\n")
     HAS_TERMCOLOR = False
+
     def colored(text, color=None, *args, **kwargs):
         return text
+
 
 from app.services.chat.uml_converter_agent import UMLConverterAgent
 
 # Test PlantUML diagrams
-CLASS_DIAGRAM = '''@startuml
+CLASS_DIAGRAM = """@startuml
 class User {
   + userId: int
   + name: String
@@ -74,9 +77,9 @@ User "1" -- "0..*" Cart
 Cart "1" -- "0..*" Product
 User "1" -- "0..*" Order
 Order "1" -- "1" Payment
-@enduml'''
+@enduml"""
 
-USE_CASE_DIAGRAM = '''@startuml
+USE_CASE_DIAGRAM = """@startuml
 left to right direction
 
 actor Customer
@@ -102,9 +105,9 @@ Customer --> UC7
 Admin --> UC2
 Admin --> UC6
 Admin --> UC7
-@enduml'''
+@enduml"""
 
-ACTIVITY_DIAGRAM = '''@startuml
+ACTIVITY_DIAGRAM = """@startuml
 start
 :Customer browses products;
 :Customer adds items to cart;
@@ -133,7 +136,8 @@ else (no)
   endif
 endif
 stop
-@enduml'''
+@enduml"""
+
 
 async def test_diagram_creation(username: str, password: str):
     """Test the creation of UML diagrams using the ACC API."""
@@ -141,10 +145,10 @@ async def test_diagram_creation(username: str, password: str):
         # Generate random numbers for project and system names
         project_num = random.randint(1000, 9999)
         system_num = random.randint(1000, 9999)
-        
+
         # Initialize the UML converter agent
         agent = UMLConverterAgent(session_id=f"test_{project_num}")
-        
+
         print(colored("\n=== Starting UML Diagram Creation Test ===", "cyan"))
         print(colored(f"Project Number: {project_num}", "yellow"))
         print(colored(f"System Number: {system_num}", "yellow"))
@@ -156,7 +160,7 @@ async def test_diagram_creation(username: str, password: str):
             password=password,
             system_name=f"testSystem_{system_num}",
             system_description="Test system for UML diagrams",
-            plantuml_code=CLASS_DIAGRAM
+            plantuml_code=CLASS_DIAGRAM,
         )
         print(colored("✓ Class diagram created successfully", "green"))
         print(colored(f"Project ID: {class_result['project_id']}", "yellow"))
@@ -170,7 +174,7 @@ async def test_diagram_creation(username: str, password: str):
             password=password,
             system_name=f"testSystem_{system_num}",
             system_description="Test system for UML diagrams",
-            plantuml_code=USE_CASE_DIAGRAM
+            plantuml_code=USE_CASE_DIAGRAM,
         )
         print(colored("✓ Use case diagram created successfully", "green"))
         print(colored(f"Diagram ID: {usecase_result['diagram']['id']}", "yellow"))
@@ -182,30 +186,44 @@ async def test_diagram_creation(username: str, password: str):
             password=password,
             system_name=f"testSystem_{system_num}",
             system_description="Test system for UML diagrams",
-            plantuml_code=ACTIVITY_DIAGRAM
+            plantuml_code=ACTIVITY_DIAGRAM,
         )
         print(colored("✓ Activity diagram created successfully", "green"))
         print(colored(f"Diagram ID: {activity_result['diagram']['id']}", "yellow"))
 
         print(colored("\n=== Test Completed Successfully ===", "green"))
-        
+
         # Print summary of created diagrams
         print(colored("\nCreated Diagrams Summary:", "cyan"))
-        print(colored(f"1. Class Diagram ID: {class_result['diagram']['id']}", "yellow"))
-        print(colored(f"2. Use Case Diagram ID: {usecase_result['diagram']['id']}", "yellow"))
-        print(colored(f"3. Activity Diagram ID: {activity_result['diagram']['id']}", "yellow"))
+        print(
+            colored(f"1. Class Diagram ID: {class_result['diagram']['id']}", "yellow")
+        )
+        print(
+            colored(
+                f"2. Use Case Diagram ID: {usecase_result['diagram']['id']}", "yellow"
+            )
+        )
+        print(
+            colored(
+                f"3. Activity Diagram ID: {activity_result['diagram']['id']}", "yellow"
+            )
+        )
 
     except Exception as e:
         print(colored(f"\n❌ Error: {str(e)}", "red"))
         raise
 
+
 def main():
-    parser = argparse.ArgumentParser(description="Test UML diagram creation with ACC API")
+    parser = argparse.ArgumentParser(
+        description="Test UML diagram creation with ACC API"
+    )
     parser.add_argument("username", help="Username for ACC API authentication")
     parser.add_argument("password", help="Password for ACC API authentication")
     args = parser.parse_args()
 
     asyncio.run(test_diagram_creation(args.username, args.password))
 
+
 if __name__ == "__main__":
-    main() 
+    main()

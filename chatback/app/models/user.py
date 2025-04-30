@@ -3,6 +3,7 @@ from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 from app.db.base_class import Base
 
+
 class User(Base):
     __tablename__ = "users"
 
@@ -27,6 +28,5 @@ class User(Base):
             "email": self.email,
             "username": self.username,
             "is_admin": self.is_admin,
-            "group_name": self.group.name if self.group else None
+            "group_name": self.group.name if self.group else None,
         }
-  

@@ -11,14 +11,15 @@ from .diagram_agent_graph import DiagramAgentGraph
 
 logger = logging.getLogger(__name__)
 
+
 def create_diagram_agent(session_id: str, username: str) -> DiagramAgentGraph:
     """
     Factory function to create the diagram agent implementation.
-    
+
     Args:
         session_id: The session ID
         username: The username
-        
+
     Returns:
         An instance of DiagramAgentGraph
     """
@@ -27,4 +28,4 @@ def create_diagram_agent(session_id: str, username: str) -> DiagramAgentGraph:
         return DiagramAgentGraph(session_id, username)
     except Exception as e:
         logger.error(f"Error creating diagram agent: {str(e)}")
-        raise 
+        raise

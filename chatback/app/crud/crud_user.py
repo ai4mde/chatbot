@@ -10,16 +10,17 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+
 class CRUDUser(CRUDBase[User, UserCreate, UserUpdate]):
-    async def authenticate(self, db: AsyncSession, *, username: str, password: str) -> Optional[User]:
+    async def authenticate(
+        self, db: AsyncSession, *, username: str, password: str
+    ) -> Optional[User]:
         """Authenticate user by username and password"""
         try:
             logger.info(f"Attempting authentication for username: {username}")
-            result = await db.execute(
-                select(User).where(User.username == username)
-            )
+            result = await db.execute(select(User).where(User.username == username))
             user = result.scalar_one_or_none()
-            
+
             if not user:
                 logger.warning(f"No user found with username: {username}")
                 return None
@@ -35,7 +36,9 @@ class CRUDUser(CRUDBase[User, UserCreate, UserUpdate]):
             logger.error(f"Authentication error: {str(e)}")
             return None
 
-    async def get_by_username(self, db: AsyncSession, *, username: str) -> Optional[User]:
+    async def get_by_username(
+        self, db: AsyncSession, *, username: str
+    ) -> Optional[User]:
         """Get user by username, eagerly loading the group relationship."""
         stmt = (
             select(User)
@@ -54,7 +57,9 @@ class CRUDUser(CRUDBase[User, UserCreate, UserUpdate]):
         """Create new user"""
         try:
             create_data = obj_in.model_dump()
-            create_data["hashed_password"] = get_password_hash(create_data.pop("password"))
+            create_data["hashed_password"] = get_password_hash(
+                create_data.pop("password")
+            )
             db_obj = User(**create_data)
             db.add(db_obj)
             await db.commit()
@@ -64,12 +69,17 @@ class CRUDUser(CRUDBase[User, UserCreate, UserUpdate]):
             logger.error(f"Error creating user: {str(e)}")
             raise
 
-    async def update(self, db: AsyncSession, *, db_obj: User, obj_in: UserUpdate) -> User:
+    async def update(
+        self, db: AsyncSession, *, db_obj: User, obj_in: UserUpdate
+    ) -> User:
         """Update existing user"""
         update_data = obj_in.model_dump(exclude_unset=True)
         if "password" in update_data and update_data["password"]:
-            update_data["hashed_password"] = get_password_hash(update_data.pop("password"))
-        
+            update_data["hashed_password"] = get_password_hash(
+                update_data.pop("password")
+            )
+
         return await super().update(db=db, db_obj=db_obj, obj_in=update_data)
 
-crud_user = CRUDUser(User) 
+
+crud_user = CRUDUser(User)

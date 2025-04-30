@@ -12,13 +12,16 @@ sys.path.insert(0, project_root)
 # Try to import termcolor, use fallback if not available
 try:
     from termcolor import colored
+
     COLORED_OUTPUT = True
 except ImportError:
     print("Note: Install termcolor for colored output: pip install termcolor")
     print("Continuing with monochrome output...\n")
+
     # Fallback colored function
     def colored(text, *args, **kwargs):
         return text
+
     COLORED_OUTPUT = False
 
 from app.services.chat.uml_converter_agent import UMLConverterAgent
@@ -42,6 +45,7 @@ endif
 stop
 @enduml
 """
+
 
 async def test_activity_diagram(username: str, password: str):
     """Test creating an activity diagram using the ACC API."""
@@ -83,104 +87,78 @@ async def test_activity_diagram(username: str, password: str):
 
         # 4.1 Create nodes (activities, decisions, etc.)
         print("4.1 Creating nodes...")
-        
+
         # Start node
         start = await agent.add_node(
-            diagram["id"],
-            "start",
-            "initial",
-            "Start of activity"
+            diagram["id"], "start", "initial", "Start of activity"
         )
         print(colored(f"✓ Created start node with ID: {start['id']}", "green"))
 
         # Login activity
         login = await agent.add_node(
-            diagram["id"],
-            "Login",
-            "action",
-            "User login activity"
+            diagram["id"], "Login", "action", "User login activity"
         )
         print(colored(f"✓ Created login activity with ID: {login['id']}", "green"))
 
         # Decision node
         decision = await agent.add_node(
-            diagram["id"],
-            "Valid Credentials?",
-            "decision",
-            "Check credentials"
+            diagram["id"], "Valid Credentials?", "decision", "Check credentials"
         )
         print(colored(f"✓ Created decision node with ID: {decision['id']}", "green"))
 
         # Dashboard activity
         dashboard = await agent.add_node(
-            diagram["id"],
-            "Dashboard",
-            "action",
-            "Main dashboard"
+            diagram["id"], "Dashboard", "action", "Main dashboard"
         )
-        print(colored(f"✓ Created dashboard activity with ID: {dashboard['id']}", "green"))
+        print(
+            colored(f"✓ Created dashboard activity with ID: {dashboard['id']}", "green")
+        )
 
         # Fork node
         fork = await agent.add_node(
-            diagram["id"],
-            "fork",
-            "fork",
-            "Parallel activities"
+            diagram["id"], "fork", "fork", "Parallel activities"
         )
         print(colored(f"✓ Created fork node with ID: {fork['id']}", "green"))
 
         # View Orders activity
         view_orders = await agent.add_node(
-            diagram["id"],
-            "View Orders",
-            "action",
-            "View order history"
+            diagram["id"], "View Orders", "action", "View order history"
         )
-        print(colored(f"✓ Created view orders activity with ID: {view_orders['id']}", "green"))
+        print(
+            colored(
+                f"✓ Created view orders activity with ID: {view_orders['id']}", "green"
+            )
+        )
 
         # Manage Profile activity
         manage_profile = await agent.add_node(
-            diagram["id"],
-            "Manage Profile",
-            "action",
-            "Update user profile"
+            diagram["id"], "Manage Profile", "action", "Update user profile"
         )
-        print(colored(f"✓ Created manage profile activity with ID: {manage_profile['id']}", "green"))
+        print(
+            colored(
+                f"✓ Created manage profile activity with ID: {manage_profile['id']}",
+                "green",
+            )
+        )
 
         # Join node
         join = await agent.add_node(
-            diagram["id"],
-            "join",
-            "join",
-            "Join parallel flows"
+            diagram["id"], "join", "join", "Join parallel flows"
         )
         print(colored(f"✓ Created join node with ID: {join['id']}", "green"))
 
         # Logout activity
-        logout = await agent.add_node(
-            diagram["id"],
-            "Logout",
-            "action",
-            "User logout"
-        )
+        logout = await agent.add_node(diagram["id"], "Logout", "action", "User logout")
         print(colored(f"✓ Created logout activity with ID: {logout['id']}", "green"))
 
         # Error activity
         error = await agent.add_node(
-            diagram["id"],
-            "Show Error",
-            "action",
-            "Display error message"
+            diagram["id"], "Show Error", "action", "Display error message"
         )
         print(colored(f"✓ Created error activity with ID: {error['id']}", "green"))
 
         # End node
-        end = await agent.add_node(
-            diagram["id"],
-            "end",
-            "final",
-            "End of activity"
-        )
+        end = await agent.add_node(diagram["id"], "end", "final", "End of activity")
         print(colored(f"✓ Created end node with ID: {end['id']}", "green"))
 
         # 4.2 Create edges (flows)
@@ -195,11 +173,15 @@ async def test_activity_diagram(username: str, password: str):
         print(colored("✓ Created edge: Login -> Decision", "green"))
 
         # Decision -> Dashboard (yes)
-        await agent.add_edge(diagram["id"], decision["id"], dashboard["id"], "control", "yes")
+        await agent.add_edge(
+            diagram["id"], decision["id"], dashboard["id"], "control", "yes"
+        )
         print(colored("✓ Created edge: Decision -> Dashboard (yes)", "green"))
 
         # Decision -> Error (no)
-        await agent.add_edge(diagram["id"], decision["id"], error["id"], "control", "no")
+        await agent.add_edge(
+            diagram["id"], decision["id"], error["id"], "control", "no"
+        )
         print(colored("✓ Created edge: Decision -> Error (no)", "green"))
 
         # Dashboard -> Fork
@@ -240,13 +222,17 @@ async def test_activity_diagram(username: str, password: str):
         print(colored(f"\n❌ Error: {str(e)}", "red"))
         raise
 
+
 def main():
-    parser = argparse.ArgumentParser(description="Test activity diagram creation with ACC API")
+    parser = argparse.ArgumentParser(
+        description="Test activity diagram creation with ACC API"
+    )
     parser.add_argument("username", help="Username for authentication")
     parser.add_argument("password", help="Password for authentication")
     args = parser.parse_args()
 
     asyncio.run(test_activity_diagram(args.username, args.password))
+
 
 if __name__ == "__main__":
     main()

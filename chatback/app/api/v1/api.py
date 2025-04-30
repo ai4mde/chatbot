@@ -12,6 +12,7 @@ api_router.include_router(chat_router, prefix="/chat", tags=["chat"])
 api_router.include_router(admin_router)
 api_router.include_router(stt_router, prefix="/stt", tags=["stt"])
 
+
 @api_router.get("/health-check")
 def health_check():
-    return {"status": "ok"} 
+    return {"status": "ok"}

@@ -17,15 +17,17 @@ SCRIPT_NAME = "List Groups Script"
 SCRIPT_VERSION = "1.0"
 
 # ANSI color codes
-BLUE = '\033[94m'
-GREEN = '\033[92m'
-YELLOW = '\033[93m'
-RED = '\033[91m'
-ENDC = '\033[0m'
+BLUE = "\033[94m"
+GREEN = "\033[92m"
+YELLOW = "\033[93m"
+RED = "\033[91m"
+ENDC = "\033[0m"
+
 
 def print_color(message: str, color: str = BLUE) -> None:
     """Print a colored message."""
     print(f"{color}{message}{ENDC}")
+
 
 async def list_groups():
     """List all groups and their members."""
@@ -50,10 +52,10 @@ async def list_groups():
 
                 for group in groups:
                     member_count = len(group.users)
-                    description = group.description or '(none)'
+                    description = group.description or "(none)"
                     if len(description) > 27:
                         description = description[:27] + "..."
-                    
+
                     print(
                         f"{group.id:<5} {group.name:<15} {description:<30} "
                         f"{member_count} users"
@@ -64,10 +66,11 @@ async def list_groups():
         print_color(f"Error listing groups: {str(e)}", RED)
         sys.exit(1)
 
+
 if __name__ == "__main__":
     try:
         print_color(f"\n=== {SCRIPT_NAME} v{SCRIPT_VERSION} ===\n", BLUE)
         asyncio.run(list_groups())
     except KeyboardInterrupt:
         print_color("\nOperation cancelled by user.", YELLOW)
-        sys.exit(0) 
+        sys.exit(0)

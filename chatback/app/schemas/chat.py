@@ -3,14 +3,18 @@ from typing import Optional, List
 from datetime import datetime
 from uuid import UUID
 
+
 class ChatSessionBase(BaseModel):
     title: str
+
 
 class ChatSessionCreate(ChatSessionBase):
     pass
 
+
 class ChatSessionUpdate(ChatSessionBase):
     pass
+
 
 class ChatSession(ChatSessionBase):
     id: int
@@ -21,11 +25,14 @@ class ChatSession(ChatSessionBase):
     class Config:
         from_attributes = True
 
+
 class ChatMessageBase(BaseModel):
     content: str
 
+
 class ChatMessageCreate(ChatMessageBase):
     message_uuid: str
+
 
 class ChatMessage(ChatMessageBase):
     id: int
@@ -36,10 +43,8 @@ class ChatMessage(ChatMessageBase):
     content: str
     progress: Optional[float] = None
 
-    model_config = ConfigDict(
-        from_attributes=True,
-        json_encoders={UUID: str}
-    )
+    model_config = ConfigDict(from_attributes=True, json_encoders={UUID: str})
+
 
 class ChatResponse(BaseModel):
     message: str
@@ -47,14 +52,11 @@ class ChatResponse(BaseModel):
     message_uuid: str
     progress: float | None = None
 
+
 class MessageResponse(BaseModel):
     message_uuid: str
     user_id: int
     content: str
     timestamp: datetime
 
-    model_config = ConfigDict(
-        from_attributes=True,
-        json_encoders={UUID: str}
-    )
-  
+    model_config = ConfigDict(from_attributes=True, json_encoders={UUID: str})

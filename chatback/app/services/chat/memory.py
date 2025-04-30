@@ -6,13 +6,12 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+
 class ChatMemoryManager(BaseChatMessageHistory):
     def __init__(self, session_id: str):
         self.session_id = session_id
         self.history = RedisChatMessageHistory(
-            session_id=session_id,
-            url=settings.REDIS_URL,
-            ttl=settings.REDIS_DATA_TTL
+            session_id=session_id, url=settings.REDIS_URL, ttl=settings.REDIS_DATA_TTL
         )
 
     @property

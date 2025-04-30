@@ -16,15 +16,17 @@ from app.db.session import AsyncSessionLocal
 from app.models import Group, User  # Import from models package
 
 # ANSI color codes
-BLUE = '\033[94m'
-GREEN = '\033[92m'
-YELLOW = '\033[93m'
-RED = '\033[91m'
-ENDC = '\033[0m'
+BLUE = "\033[94m"
+GREEN = "\033[92m"
+YELLOW = "\033[93m"
+RED = "\033[91m"
+ENDC = "\033[0m"
+
 
 def print_color(message: str, color: str) -> None:
     """Print a colored message."""
     print(f"{color}{message}{ENDC}")
+
 
 def prompt_input(message: str, required: bool = True, default: str = None) -> str:
     """Prompt for input with optional default value."""
@@ -32,7 +34,7 @@ def prompt_input(message: str, required: bool = True, default: str = None) -> st
         message = f"{message} [{default}]: "
     else:
         message = f"{message}: "
-    
+
     while True:
         value = input(message).strip()
         if not value:
@@ -43,6 +45,7 @@ def prompt_input(message: str, required: bool = True, default: str = None) -> st
             print_color("This field is required.", RED)
             continue
         return value
+
 
 async def list_available_groups() -> None:
     """List all groups for selection."""
@@ -61,13 +64,18 @@ async def list_available_groups() -> None:
             status = "🔒 " if member_count > 0 else "  "
             print(f"{status}{group.name} ({member_count} members)")
 
+
 async def delete_group(name: str) -> None:
     """Delete a group if it has no members."""
     try:
         async with AsyncSessionLocal() as session:
             async with session.begin():
                 # Find the group
-                stmt = select(Group).options(selectinload(Group.users)).where(Group.name == name)
+                stmt = (
+                    select(Group)
+                    .options(selectinload(Group.users))
+                    .where(Group.name == name)
+                )
                 result = await session.execute(stmt)
                 group = result.scalar_one_or_none()
 
@@ -77,7 +85,10 @@ async def delete_group(name: str) -> None:
 
                 # Check if group has members
                 if group.users:
-                    print_color(f"\nError: Cannot delete group '{name}' because it has {len(group.users)} members.", RED)
+                    print_color(
+                        f"\nError: Cannot delete group '{name}' because it has {len(group.users)} members.",
+                        RED,
+                    )
                     print("Remove all members first.")
                     return
 
@@ -90,26 +101,30 @@ async def delete_group(name: str) -> None:
         print_color(f"Error deleting group: {str(e)}", RED)
         sys.exit(1)
 
+
 async def main():
     print_color("\n=== Delete Group ===\n", BLUE)
-    
+
     # Show available groups
     await list_available_groups()
-    
+
     # Get group name
     name = prompt_input("\nGroup name to delete")
-    
+
     # Confirm deletion
-    confirm = prompt_input(f"Are you sure you want to delete '{name}'? (y/N)", required=False, default="n")
-    if confirm.lower() != 'y':
+    confirm = prompt_input(
+        f"Are you sure you want to delete '{name}'? (y/N)", required=False, default="n"
+    )
+    if confirm.lower() != "y":
         print_color("Operation cancelled.", YELLOW)
         return
 
     await delete_group(name)
+
 
 if __name__ == "__main__":
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
         print_color("\nOperation cancelled by user.", YELLOW)
-        sys.exit(0) 
+        sys.exit(0)

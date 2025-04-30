@@ -5,7 +5,7 @@ from jose import JWTError, jwt
 from app.core.config import settings
 
 # Remove the problematic import
-# from app.api.deps import oauth2_scheme 
+# from app.api.deps import oauth2_scheme
 
 # Remove the redundant function definition
 # async def get_current_user(token: str = Depends(oauth2_scheme)) -> User:
@@ -21,8 +21,8 @@ from app.core.config import settings
 #             raise credentials_exception
 #     except JWTError:
 #         raise credentials_exception
-#         
+#
 #     user = await User.get_by_username(username)
 #     if user is None:
 #         raise credentials_exception
-#     return user 
+#     return user
