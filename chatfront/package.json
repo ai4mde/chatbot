@@ -34,6 +34,7 @@
 		"@types/dagre": "^0.7.52",
 		"@types/prismjs": "^1.26.5",
 		"@types/react-syntax-highlighter": "^15.5.11",
+		"@uiw/react-md-editor": "^4.0.6",
 		"class-variance-authority": "^0.7.1",
 		"clsx": "^2.1.1",
 		"dagre": "^0.8.5",

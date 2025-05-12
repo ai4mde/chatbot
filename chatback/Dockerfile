@@ -1,7 +1,7 @@
 # ===========================================================================
 # Stage 1: Builder
 # ---------------------------------------------------------------------------
-FROM ghcr.io/astral-sh/uv:0.5.30-python3.13-alpine AS builder
+FROM ghcr.io/astral-sh/uv:0.7.2-python3.13-alpine AS builder
 
 # Set environment variables
 ENV PYTHONDONTWRITEBYTECODE=1 \
@@ -30,15 +30,14 @@ WORKDIR /chatback
 # Copy project files
 COPY . .
 
-# Install dependencies with pre-built wheels for problematic packages
-#RUN uv pip install "asyncpg>=0.29.0,<0.31.0" --only-binary=:all: --system && \
-#    uv pip install "argon2-cffi>=21.0.0" --system && \
-RUN    uv pip install . --system
+# Create virtual environment and install dependencies into it
+RUN uv venv --python python3 && \
+    uv pip install . --no-cache
 
 # ===========================================================================
 # Stage 2: Final image
 # ---------------------------------------------------------------------------
-FROM ghcr.io/astral-sh/uv:0.5.30-python3.13-alpine
+FROM ghcr.io/astral-sh/uv:0.7.2-python3.13-alpine
 
 # Set user ID
 ARG USER_ID=1101  # Default value if not provided
@@ -70,6 +69,12 @@ WORKDIR /chatback
 # Copy only necessary production files as cbuser
 USER cbuser
 COPY --chown=cbuser:cbuser . .
+
+# Copy virtual environment from builder stage
+COPY --from=builder --chown=cbuser:cbuser /chatback/.venv /chatback/.venv
+
+# Set path to use venv python and add venv bin to PATH
+ENV PATH="/chatback/.venv/bin:$PATH"
 
 # Create config directory and copy env file
 #RUN mkdir config

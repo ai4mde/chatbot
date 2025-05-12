@@ -29,6 +29,13 @@ interface Interview {
   data: InterviewData;
 }
 
+interface Message {
+  speaker: string;
+  timestamp: string;
+  content: string;
+  isAI: boolean;
+}
+
 export const meta: MetaFunction<typeof loader> = ({ data }) => {
   if (!data?.interview) {
     return [
@@ -112,6 +119,69 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 // Add components for enlargeable elements (DiagramImage, EnlargeableTable, EnlargeableCode)
 // ... (same components as in srsdoc.$id.tsx) ...
 
+function parseMessages(content: string): { metadata: string; messages: Message[] } {
+  const messages: Message[] = [];
+  const sections = content.split('## Messages');
+  const metadata = sections[0] || '';
+  
+  // Skip the first two lines (title and date) and take the rest of the metadata
+  const filteredMetadata = metadata
+    .split('\n')
+    .slice(2)
+    .join('\n')
+    .trim();
+  
+  if (!sections[1]) return { metadata: filteredMetadata, messages };
+
+  const messageRegex = /### \*\*([^*]+)\*\* \(([^)]+)\)\n([\s\S]*?)(?=### \*\*|$)/g;
+  let match;
+
+  while ((match = messageRegex.exec(sections[1])) !== null) {
+    const [_, speaker, timestamp, content] = match;
+    const isAI = speaker.toLowerCase().includes('assistant') || speaker.toLowerCase().includes('agent');
+    // Remove the "---" lines from the content
+    const cleanContent = content
+      .split('\n')
+      .filter(line => !line.trim().startsWith('---'))
+      .join('\n')
+      .trim();
+    messages.push({
+      speaker,
+      timestamp,
+      content: cleanContent,
+      isAI
+    });
+  }
+
+  return { metadata: filteredMetadata, messages };
+}
+
+interface ChatBubbleProps {
+  children: React.ReactNode;
+  isAI?: boolean;
+  speaker: string;
+  timestamp: string;
+}
+
+function ChatBubble({ children, isAI, speaker, timestamp }: ChatBubbleProps) {
+  return (
+    <div className={cn(
+      'flex w-full mb-4',
+      isAI ? 'justify-start' : 'justify-end'
+    )}>
+      <div className={cn(
+        'max-w-[95%] rounded-2xl px-4 py-2',
+        isAI ? 'bg-muted' : 'bg-primary text-primary-foreground'
+      )}>
+        <div className="text-sm font-semibold mb-2">
+          {speaker} {timestamp}
+        </div>
+        {children}
+      </div>
+    </div>
+  );
+}
+
 function CodeBlock({ className = '', children }: { className?: string; children: string }) {
   const language = className.replace(/language-/, '');
   const html = React.useMemo(() => {
@@ -135,7 +205,7 @@ function CodeBlock({ className = '', children }: { className?: string; children:
   );
 }
 
-const markdownOptions = {
+const metadataMarkdownOptions = {
   options: {
     forceBlock: true,
     forceWrapper: true,
@@ -158,7 +228,7 @@ const markdownOptions = {
       component: CodeBlock
     },
     pre: {
-      component: ({ children }) => children
+      component: ({ children }: { children: React.ReactNode }) => children
     },
     img: { 
       props: { 
@@ -169,8 +239,77 @@ const markdownOptions = {
   },
 };
 
+const markdownOptions = {
+  options: {
+    forceBlock: true,
+    forceWrapper: true,
+    wrapper: 'div',
+    disableParsingRawHTML: false,
+    escapeHtml: false,
+  },
+  overrides: {
+    h1: { props: { className: 'text-3xl font-bold mt-8 mb-4' } },
+    h2: { props: { className: 'text-2xl font-semibold mt-6 mb-3' } },
+    h3: { props: { className: 'text-xl font-semibold mt-4 mb-2' } },
+    h4: { props: { className: 'text-lg font-semibold mt-4 mb-2' } },
+    p: { 
+      component: ({ children }: { children: React.ReactNode }) => (
+        <ChatBubble isAI={true} speaker="" timestamp="">
+          <p className="text-muted-foreground">{children}</p>
+        </ChatBubble>
+      )
+    },
+    ul: { 
+      component: ({ children }: { children: React.ReactNode }) => (
+        <ChatBubble isAI={true} speaker="" timestamp="">
+          <ul className="list-disc list-inside mb-4 ml-4">{children}</ul>
+        </ChatBubble>
+      )
+    },
+    ol: { 
+      component: ({ children }: { children: React.ReactNode }) => (
+        <ChatBubble isAI={true} speaker="" timestamp="">
+          <ol className="list-decimal list-inside mb-4 ml-4">{children}</ol>
+        </ChatBubble>
+      )
+    },
+    li: { props: { className: 'mb-1' } },
+    a: { props: { className: 'text-primary hover:underline' } },
+    blockquote: { 
+      component: ({ children }: { children: React.ReactNode }) => (
+        <ChatBubble isAI={true} speaker="" timestamp="">
+          <blockquote className="border-l-4 border-primary pl-4 italic my-4">{children}</blockquote>
+        </ChatBubble>
+      )
+    },
+    code: {
+      component: CodeBlock
+    },
+    pre: {
+      component: ({ children }: { children: React.ReactNode }) => (
+        <ChatBubble isAI={true} speaker="" timestamp="">
+          {children}
+        </ChatBubble>
+      )
+    },
+    img: { 
+      component: ({ src, alt }: { src: string; alt?: string }) => (
+        <ChatBubble isAI={true} speaker="" timestamp="">
+          <img 
+            src={src} 
+            alt={alt} 
+            className="max-w-full h-auto my-4 mx-auto rounded-lg shadow-md"
+            loading="lazy"
+          />
+        </ChatBubble>
+      )
+    },
+  },
+};
+
 export default function InterviewLog() {
   const { interview } = useLoaderData<typeof loader>();
+  const { metadata, messages } = parseMessages(interview.content);
 
   return (
     <MaxWidthWrapper className='py-8'>
@@ -197,12 +336,46 @@ export default function InterviewLog() {
         '[&>code]:bg-muted [&>code]:px-1.5 [&>code]:py-0.5 [&>code]:rounded'
       )}>
         <h1 className='text-4xl font-bold mb-4'>{interview.data.title}</h1>
-        {interview.data.date && (
-          <p className='text-sm text-muted-foreground mb-8'>
-            {new Date(interview.data.date).toLocaleDateString()}
-          </p>
+        {/* <p className='text-muted-foreground mb-4'>{interview.data.description}</p> */}
+        
+        {/* Metadata Section */}
+        {metadata.trim() && (
+          <div className="mb-8">
+            <Markdown options={metadataMarkdownOptions}>{metadata}</Markdown>
+          </div>
         )}
-        <Markdown options={markdownOptions}>{interview.content}</Markdown>
+
+        {/* Messages Section */}
+        <div className="space-y-4">
+          <h2 className="text-2xl font-semibold mb-6">Chat history</h2>
+          {messages.map((message, index) => (
+            <ChatBubble 
+              key={index} 
+              isAI={message.isAI}
+              speaker={message.speaker}
+              timestamp={message.timestamp}
+            >
+              {message.isAI ? (
+                <Markdown options={markdownOptions}>{message.content}</Markdown>
+              ) : (
+                <div className="text-primary-foreground">
+                  <Markdown options={{
+                    ...markdownOptions,
+                    overrides: {
+                      ...markdownOptions.overrides,
+                      p: { props: { className: 'mb-4' } },
+                      ul: { props: { className: 'list-disc list-inside mb-4 ml-4' } },
+                      ol: { props: { className: 'list-decimal list-inside mb-4 ml-4' } },
+                      blockquote: { props: { className: 'border-l-4 border-primary-foreground pl-4 italic my-4' } },
+                      code: { props: { className: 'bg-primary-foreground/20 px-1.5 py-0.5 rounded' } },
+                      pre: { props: { className: 'bg-primary-foreground/20 p-4 rounded-lg mb-4 overflow-x-auto' } },
+                    }
+                  }}>{message.content}</Markdown>
+                </div>
+              )}
+            </ChatBubble>
+          ))}
+        </div>
       </article>
     </MaxWidthWrapper>
   );

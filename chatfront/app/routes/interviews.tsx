@@ -9,6 +9,7 @@ import MaxWidthWrapper from '../components/layout/max-width-wrapper';
 import { requireUser } from '../services/session.server';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { FileText } from 'lucide-react';
+import { Button } from '../components/ui/button';
 
 export const meta: MetaFunction = () => {
   return [
@@ -85,24 +86,24 @@ export async function loader({ request }: LoaderFunctionArgs) {
 
 function InterviewCard({ id, title, description, date }: { id: string; title: string; description: string; date: string }) {
   return (
-    <Card className='group hover:shadow-md transition-shadow'>
-      <Link to={`/interview/${id}`} className='block h-full'>
-        <CardHeader>
-          <CardTitle className='flex items-center gap-2'>
-            <FileText className='h-5 w-5 text-muted-foreground group-hover:text-primary transition-colors' />
-            {title}
-          </CardTitle>
-          {date && (
-            <CardDescription>
-              {new Date(date).toLocaleDateString()}
-            </CardDescription>
-          )}
-        </CardHeader>
-        <CardContent>
-          <p className='text-muted-foreground line-clamp-3'>{description}</p>
-        </CardContent>
-      </Link>
-    </Card>
+    <div className='rounded-lg border bg-card text-card-foreground shadow-sm hover:shadow-md transition-shadow'>
+      <div className='p-6'>
+        <h3 className='text-2xl font-semibold leading-none tracking-tight mb-2'>
+          {title}
+        </h3>
+        {/* <p className='text-sm text-muted-foreground mb-4'>
+          {description}
+        </p> */}
+        {date && (
+          <p className='text-xs text-muted-foreground mb-4'>
+            {new Date(date).toLocaleDateString()}
+          </p>
+        )}
+        <Button asChild>
+          <Link to={`/interview/${id}`}>Read More</Link>
+        </Button>
+      </div>
+    </div>
   );
 }
 

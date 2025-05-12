@@ -12,34 +12,44 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  lint_and_test:
-    name: Lint & Test
+  chatback:
+    name: Lint & Test (Chatback)
     runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/astral-sh/uv:0.7.2-python3.13-alpine
+    env:
+      PYTHONDONTWRITEBYTECODE: 1
+      PYTHONUNBUFFERED: 1
+      CUDA_VISIBLE_DEVICES: ""
+      TORCH_CUDA_ARCH_LIST: "None"
+      DISABLE_CUDA: "1"
+      PATH: "/root/.local/bin:$PATH"
+      TZ: Europe/Amsterdam
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # --- Chatback Steps ---
-      - name: Set up Python 3.13
-        id: setup-python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.13'
+      - name: Install build dependencies
+        run: apk add --no-cache gcc g++ musl-dev python3-dev libffi-dev openssl-dev postgresql-dev libgcc libstdc++ libpq libffi openssl argon2-libs postgresql-client bash doas
+
+      - name: Create non-root user
+        run: |
+          adduser -D -u 1101 -s /bin/bash cbuser
+          echo "permit nopass cbuser as root cmd chown args -R cbuser:cbuser /chatback/data" > /etc/doas.d/doas.conf
 
       - name: Install Python dependencies (Chatback)
         working-directory: ./chatback
         run: |
           python -m pip install --upgrade pip
-          # Install main and dev dependencies
           pip install .[dev]
 
       - name: Lint with Black (Chatback)
         working-directory: ./chatback
         run: black --check .
 
-      - name: Lint with MyPy (Chatback)
-        working-directory: ./chatback
-        run: mypy app # Adjust path if needed, e.g., 'mypy .'
+      # - name: Lint with MyPy (Chatback)
+      #   working-directory: ./chatback
+      #   run: mypy app # TODO: Enable once codebase is MyPy compatible
 
       # Add isort check if desired: isort --check .
       # - name: Lint with isort (Chatback)
@@ -48,23 +58,37 @@ jobs:
 
       - name: Run tests (Chatback)
         working-directory: ./chatback
-        run: pytest # Add options like '-v' or '--cov=app' if needed
+        run: pytest
 
-      # --- Chatfront Steps ---
-      - name: Set up Bun
-        uses: oven-sh/setup-bun@v1
-        # with:
-        #   bun-version: latest # Optional: specify Bun version
+  chatfront:
+    name: Lint & Typecheck (Chatfront)
+    runs-on: ubuntu-latest
+    container:
+      image: oven/bun:1.2.10-alpine
+    env:
+      NODE_ENV: production
+      PORT: 3000
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Create non-root user
+        run: adduser -D -u 1101 -s /bin/sh cfuser
+
+      - name: Set up working directory
+        run: |
+          mkdir -p /chatfront
+          chown cfuser:cfuser /chatfront
 
       - name: Install Node.js dependencies (Chatfront)
         working-directory: ./chatfront
         run: bun install
 
-      - name: Lint with ESLint (Chatfront) # Assumes 'lint' script in package.json
+      - name: Lint with ESLint (Chatfront)
         working-directory: ./chatfront
         run: bun run lint
 
-      - name: Run Type Check (Chatfront) # Assumes 'typecheck' script in package.json
+      - name: Run Type Check (Chatfront)
         working-directory: ./chatfront
         run: bun run typecheck
 

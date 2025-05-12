@@ -19,7 +19,7 @@ export function Footer() {
         <p className='text-center text-sm leading-loose'>
           Built for{' '}
           <a
-            href='https://www.universiteitleiden.nl/en'
+            href='https://www.universiteitleiden.nl/en/education/masters/master-talks/programme-videos/ict-in-business-and-the-public-sector/ict-in-business-and-the-public-sector'
             target='_blank'
             rel='noreferrer'
             className='font-medium underline underline-offset-4'
@@ -28,7 +28,7 @@ export function Footer() {
           </a>
           . The source code is available on{' '}
           <a
-            href='https://github.com/LIACS/AI4MDE'
+            href='https://github.com/ai4mde/chatbot'
             target='_blank'
             rel='noreferrer'
             className='font-medium underline underline-offset-4'

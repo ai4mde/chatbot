@@ -1,15 +1,18 @@
-import { json, redirect } from '@remix-run/node';
+import { json, redirect, type ActionFunctionArgs } from '@remix-run/node';
 import type { LoaderFunctionArgs, MetaFunction } from '@remix-run/node';
-import { Link, useLoaderData } from '@remix-run/react';
+import { Link, useLoaderData, Form, useNavigation } from '@remix-run/react';
 import * as React from 'react';
 import { promises as fs } from 'fs';
 import path from 'path';
 import matter from 'gray-matter';
 import Markdown from 'markdown-to-jsx';
 import hljs from 'highlight.js';
+import '@uiw/react-md-editor/markdown-editor.css';
+import '@uiw/react-markdown-preview/markdown.css';
+import { default as MDEditor } from '@uiw/react-md-editor';
 import 'highlight.js/styles/atom-one-dark.css';
 import MaxWidthWrapper from '../components/layout/max-width-wrapper';
-import { requireUser } from '../services/session.server';
+import { requireUser, getUserFromSession } from '../services/session.server';
 import { Button } from '../components/ui/button';
 import { 
   Dialog, 
@@ -18,10 +21,11 @@ import {
   DialogTitle, 
   DialogDescription 
 } from '../components/ui/dialog';
-import { ChevronLeft, ZoomIn } from 'lucide-react';
+import { ChevronLeft, ZoomIn, FileEdit, Save, XCircle } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { convertPlantUmlToSvg } from '../utils/plantuml.server';
 import { Suspense } from 'react';
+import ChatBubble from '../components/chat/chat-bubble';
 
 // Types and interfaces
 interface DocData {
@@ -55,12 +59,20 @@ interface EnlargeableTableProps {
 interface EnlargeableCodeProps {
   language: string;
   children: string;
-  html: string;
 }
 
 interface CodeBlockProps {
   className?: string;
   children: string;
+}
+
+// Add new type for user session data (adjust if your User type is different)
+interface UserSessionData {
+  id: string;
+  username: string;
+  email: string;
+  group_name: string;
+  access_token?: string;
 }
 
 export const meta: MetaFunction<typeof loader> = ({ data }) => {
@@ -146,73 +158,27 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
   }
 }
 
-// Simplified markdown options with consistent rendering
-const markdownOptions = {
-  options: {
-    forceBlock: true,
-    forceWrapper: true,
-    wrapper: 'div',
-    disableParsingRawHTML: false,
-    escapeHtml: false,
-  },
+// Base Markdown options - OUTSIDE component
+const baseMarkdownOptionsConfig = {
+  forceBlock: true,
+  forceWrapper: true,
+  wrapper: 'div',
+  disableParsingRawHTML: false,
+  escapeHtml: false,
   overrides: {
     h1: { props: { className: 'text-3xl font-bold mt-8 mb-4' } },
     h2: { props: { className: 'text-2xl font-semibold mt-6 mb-3' } },
     h3: { props: { className: 'text-xl font-semibold mt-4 mb-2' } },
     h4: { props: { className: 'text-lg font-semibold mt-4 mb-2' } },
     p: { 
-      component: ({ children, ...props }) => {
-        // Convert children to array for easier handling
+      component: ({ children, ...props }: { children: React.ReactNode }) => {
         const childArray = React.Children.toArray(children);
-        
-        // Check if this paragraph contains only a code block
-        const hasOnlyCode = childArray.length === 1 && React.isValidElement(childArray[0]) && (
-          childArray[0].type === CodeBlock ||
-          childArray[0].type === 'pre' ||
-          (childArray[0].type === 'code' && !childArray[0].props.inline)
-        );
-
-        // If it's just a code block, return it directly without a paragraph wrapper
-        if (hasOnlyCode) {
-          return childArray[0];
-        }
-
-        // Check for other special components
-        const hasSpecialComponent = childArray.some(child => 
-          React.isValidElement(child) && (
-            child.type === DiagramImage ||
-            child.type === EnlargeableTable ||
-            child.type === EnlargeableCode ||
-            child.type === 'pre' ||
-            child.type === CodeBlock ||
-            (typeof child.type === 'string' && child.type.startsWith('h'))
-          )
-        );
-
-        // If it contains special components, render them in sequence
+        const hasOnlyCode = childArray.length === 1 && React.isValidElement(childArray[0]) && (childArray[0].type === CodeBlock || childArray[0].type === 'pre' || (childArray[0].type === 'code' && !childArray[0].props.inline));
+        if (hasOnlyCode) return childArray[0];
+        const hasSpecialComponent = childArray.some(child => React.isValidElement(child) && (child.type === DiagramImage || child.type === EnlargeableTable || child.type === EnlargeableCode || child.type === 'pre' || child.type === CodeBlock || (typeof child.type === 'string' && child.type.startsWith('h'))));
         if (hasSpecialComponent) {
-          return (
-            <>
-              {childArray.map((child, index) => {
-                if (React.isValidElement(child) && (
-                  child.type === DiagramImage ||
-                  child.type === EnlargeableTable ||
-                  child.type === EnlargeableCode ||
-                  child.type === 'pre' ||
-                  child.type === CodeBlock ||
-                  (typeof child.type === 'string' && child.type.startsWith('h'))
-                )) {
-                  // Render special components directly
-                  return <React.Fragment key={index}>{child}</React.Fragment>;
-                }
-                // Wrap text content in spans to maintain inline formatting
-                return <span key={index} className="text-muted-foreground">{child}</span>;
-              })}
-            </>
-          );
+          return <>{childArray.map((child, index) => React.isValidElement(child) && (child.type === DiagramImage || child.type === EnlargeableTable || child.type === EnlargeableCode || child.type === 'pre' || child.type === CodeBlock || (typeof child.type === 'string' && child.type.startsWith('h'))) ? <React.Fragment key={index}>{child}</React.Fragment> : <span key={index} className="text-muted-foreground">{child}</span>)}</>;
         }
-
-        // Regular paragraph content
         return <p className="text-muted-foreground mb-4" {...props}>{children}</p>;
       }
     },
@@ -221,24 +187,8 @@ const markdownOptions = {
     li: { props: { className: 'mb-1' } },
     a: { props: { className: 'text-primary hover:underline' } },
     blockquote: { props: { className: 'border-l-4 border-primary pl-4 italic my-4' } },
-    pre: {
-      component: ({ children }) => children
-    },
-    img: { component: DiagramImage },
-    table: {
-      component: ({ children }) => (
-        <EnlargeableTable>
-          {children}
-        </EnlargeableTable>
-      )
-    },
-    thead: { component: ({ children }) => <thead>{children}</thead> },
-    tbody: { component: ({ children }) => <tbody>{children}</tbody> },
-    th: { props: { className: 'px-4 py-2 text-left text-sm font-medium text-foreground bg-muted' } },
-    td: { props: { className: 'px-4 py-2 text-sm text-muted-foreground' } },
-    code: {
-      component: CodeBlock
-    },
+    pre: { component: ({ children }: { children: React.ReactNode }) => children },
+    // Note: img, table, code overrides will be added INSIDE the component now
   },
 };
 
@@ -405,26 +355,43 @@ function EnlargeableTable({ children }: EnlargeableTableProps) {
 }
 
 // EnlargeableCode component
-function EnlargeableCode({ language, children, html }: EnlargeableCodeProps) {
+function EnlargeableCode({ language, children: rawCodeString }: EnlargeableCodeProps) {
   const [isOpen, setIsOpen] = React.useState(false);
   const [isClient, setIsClient] = React.useState(false);
+  const [highlightedCodeHtml, setHighlightedCodeHtml] = React.useState<string | null>(null);
 
   React.useEffect(() => {
-    setIsClient(true);
-  }, []);
+    setIsClient(true); // For Dialog and InteractiveWrapper logic
+    // Perform highlighting on the client
+    let hlValue;
+    if (language && hljs.getLanguage(language)) {
+      try {
+        hlValue = hljs.highlight(rawCodeString, { language, ignoreIllegals: true }).value;
+      } catch (e) {
+        console.error("Highlighting error:", e);
+        hlValue = hljs.highlightAuto(rawCodeString).value; // Fallback
+      }
+    } else {
+      hlValue = hljs.highlightAuto(rawCodeString).value;
+    }
+    setHighlightedCodeHtml(hlValue);
+  }, [rawCodeString, language]);
 
   const codeContent = (
     <div className='my-4'>
       <pre className='overflow-x-auto'>
         <code
           className={`${language ? `hljs language-${language}` : 'hljs'} block`}
-          dangerouslySetInnerHTML={{ __html: html }}
+          // Initially render raw string if no highlighted version yet, then switch to dangerouslySetInnerHTML
+          {...(highlightedCodeHtml !== null ? { dangerouslySetInnerHTML: { __html: highlightedCodeHtml } } : { children: rawCodeString })}
         />
       </pre>
     </div>
   );
 
   if (!isClient) {
+    // For SSR and initial client render path before isClient is true (and before highlighting effect runs)
+    // It will render with rawCodeString in the <code> tag via the ternary in codeContent
     return codeContent;
   }
 
@@ -442,7 +409,7 @@ function EnlargeableCode({ language, children, html }: EnlargeableCodeProps) {
             </DialogDescription>
           </DialogHeader>
           <div className='w-full h-full overflow-auto'>
-            {codeContent}
+            {codeContent} {/* This will show highlighted code once available */}
           </div>
         </DialogContent>
       </Dialog>
@@ -451,22 +418,12 @@ function EnlargeableCode({ language, children, html }: EnlargeableCodeProps) {
 }
 
 // Update CodeBlock to use EnlargeableCode
-function CodeBlock({ className = '', children }: CodeBlockProps) {
+function CodeBlock({ className = '', children }: CodeBlockProps) { // children here is the raw code string
   const language = className.replace(/language-/, '');
-  const html = React.useMemo(() => {
-    if (language && hljs.getLanguage(language)) {
-      try {
-        return hljs.highlight(children, { language }).value;
-      } catch (err) {
-        console.error('Error highlighting code:', err);
-      }
-    }
-    return hljs.highlightAuto(children).value;
-  }, [children, language]);
-
+  // No more useMemo for html here. Pass children (rawCodeString) directly.
   return (
     <pre className='!p-0 !m-0 !bg-transparent'>
-      <EnlargeableCode language={language} html={html} children={children} />
+      <EnlargeableCode language={language} children={children} />
     </pre>
   );
 }
@@ -508,61 +465,191 @@ async function processPlantUml(content: string): Promise<string> {
 // Main component with Suspense boundary
 export default function SrsDoc() {
   const { doc } = useLoaderData<typeof loader>();
+  const [isModalOpen, setIsModalOpen] = React.useState(false);
+  const [modalContent, setModalContent] = React.useState<React.ReactNode>(null);
+  const navigation = useNavigation();
+  const isSaving = navigation.state === 'submitting' && navigation.formData?.get('_action') === 'saveMarkdown';
+
+  const [isEditing, setIsEditing] = React.useState(false);
+  const [editedMarkdown, setEditedMarkdown] = React.useState<string | undefined>(undefined);
+
+  const handleOpenModal = React.useCallback((content: React.ReactNode) => {
+    setModalContent(content);
+    setIsModalOpen(true);
+  }, []);
+
+  // Define the FULL markdown options INSIDE the component
+  const markdownOptionsWithModal = React.useMemo(() => ({
+    // Define the top-level options expected by Markdown component directly
+    forceBlock: baseMarkdownOptionsConfig.forceBlock,
+    forceWrapper: baseMarkdownOptionsConfig.forceWrapper,
+    wrapper: baseMarkdownOptionsConfig.wrapper as React.ElementType<any> | null | undefined, // Explicitly cast wrapper type
+    disableParsingRawHTML: baseMarkdownOptionsConfig.disableParsingRawHTML,
+    escapeHtml: baseMarkdownOptionsConfig.escapeHtml,
+    overrides: {
+      ...baseMarkdownOptionsConfig.overrides, // Base overrides
+      // Add modal-specific overrides
+      img: { 
+        component: DiagramImage, 
+        props: { onOpen: handleOpenModal }
+      },
+      table: { 
+        component: EnlargeableTable, 
+        props: { onOpen: handleOpenModal }
+      },
+      code: { 
+        component: CodeBlock, 
+        props: { onOpen: handleOpenModal }
+      },
+    }
+  }), [handleOpenModal]);
+
+  const handleEdit = async () => {
+    setEditedMarkdown(doc.content);
+    setIsEditing(true);
+  };
+
+  const handleCancelEdit = () => {
+    setIsEditing(false);
+    setEditedMarkdown(undefined);
+  };
+
+  const onEditorChange = (value?: string) => {
+    setEditedMarkdown(value);
+  };
 
   return (
-    <Suspense fallback={
-      <MaxWidthWrapper className='py-8'>
-        <div className='mb-8'>
-          <Button asChild variant='ghost' size='sm'>
-            <Link to='/srsdocs' className='flex items-center gap-2'>
-              <ChevronLeft className='h-4 w-4' />
-              Back to Documents
-            </Link>
+    <MaxWidthWrapper className="py-8 flex flex-col">
+      <div className="flex justify-between items-center mb-4 flex-shrink-0">
+        <Link to="/srsdocs" className="text-primary hover:underline flex items-center">
+          <ChevronLeft className="h-5 w-5 mr-1" />
+          Back to SRS Documents
+        </Link>
+        {/* Edit Button */}
+        {!isEditing && (
+          <Button variant="outline" onClick={handleEdit} className="flex items-center">
+            <FileEdit className="h-4 w-4 mr-2" />
+            Edit Document
           </Button>
-        </div>
-        <div className='animate-pulse'>
-          <div className='h-8 w-3/4 bg-muted rounded mb-4'></div>
-          <div className='h-4 w-1/4 bg-muted rounded mb-8'></div>
-          <div className='space-y-4'>
-            <div className='h-4 w-full bg-muted rounded'></div>
-            <div className='h-4 w-5/6 bg-muted rounded'></div>
-            <div className='h-4 w-4/6 bg-muted rounded'></div>
-          </div>
-        </div>
-      </MaxWidthWrapper>
-    }>
-      <MaxWidthWrapper className='py-8'>
-        <div className='mb-8'>
-          <Button asChild variant='ghost' size='sm'>
-            <Link to='/srsdocs' className='flex items-center gap-2'>
-              <ChevronLeft className='h-4 w-4' />
-              Back to Documents
-            </Link>
-          </Button>
-        </div>
+        )}
+      </div>
 
-        <article className={cn(
-          'prose dark:prose-invert max-w-none',
-          '[&>h1]:text-4xl [&>h1]:font-bold [&>h1]:mb-4',
-          '[&>h2]:text-3xl [&>h2]:font-semibold [&>h2]:mb-3 [&>h2]:mt-8',
-          '[&>h3]:text-2xl [&>h3]:font-semibold [&>h3]:mb-2 [&>h3]:mt-6',
-          '[&>p]:text-muted-foreground [&>p]:mb-4',
-          '[&>ul]:list-disc [&>ul]:ml-6 [&>ul]:mb-4',
-          '[&>ol]:list-decimal [&>ol]:ml-6 [&>ol]:mb-4',
-          '[&>li]:mb-1',
-          '[&>blockquote]:border-l-4 [&>blockquote]:border-primary [&>blockquote]:pl-4 [&>blockquote]:italic [&>blockquote]:my-4',
-          '[&>pre]:bg-muted [&>pre]:p-4 [&>pre]:rounded-lg [&>pre]:mb-4 [&>pre]:overflow-x-auto',
-          '[&>code]:bg-muted [&>code]:px-1.5 [&>code]:py-0.5 [&>code]:rounded'
-        )}>
-          <h1 className='text-4xl font-bold mb-4'>{doc.data.title}</h1>
-          {doc.data.date && (
-            <p className='text-sm text-muted-foreground mb-8'>
-              {new Date(doc.data.date).toLocaleDateString()}
-            </p>
-          )}
-          <Markdown options={markdownOptions}>{doc.content}</Markdown>
+      <h1 className="text-4xl font-bold tracking-tight text-foreground mb-2">{doc.data.title}</h1>
+      <p className="text-sm text-muted-foreground mb-6 flex-shrink-0">
+        Last updated: {doc.data.date ? new Date(doc.data.date).toLocaleDateString() : 'N/A'} (Filename: {doc.data.filename})
+      </p>
+
+      {isEditing ? (
+        <Form method="post" className="flex flex-col">
+          <input type="hidden" name="docId" value={doc.data.id} />
+          <input type="hidden" name="filename" value={doc.data.filename} /> 
+          <input type="hidden" name="markdownContent" value={editedMarkdown || ''} /> 
+          <div data-color-mode="light" className="mb-4">
+            <MDEditor
+              value={editedMarkdown}
+              onChange={onEditorChange}
+              preview="live"
+              className="h-[80vh] min-h-[600px]"
+              textareaProps={{
+                style: { resize: 'vertical' }
+              }}
+            />
+          </div>
+          <div className="flex justify-end space-x-2 flex-shrink-0">
+            <Button type="button" variant="outline" onClick={handleCancelEdit} disabled={isSaving}>
+              <XCircle className="h-4 w-4 mr-2" />
+              Cancel
+            </Button>
+            <Button type="submit" name="_action" value="saveMarkdown" disabled={isSaving}>
+              <Save className="h-4 w-4 mr-2" />
+              {isSaving ? 'Saving...' : 'Save Changes'}
+            </Button>
+          </div>
+        </Form>
+      ) : (
+        <article className="prose prose-zinc dark:prose-invert max-w-none flex-grow">
+          <Suspense fallback={<div>Loading document content...</div>}>
+            <Markdown options={markdownOptionsWithModal}>
+              {doc.content}
+            </Markdown>
+          </Suspense>
         </article>
-      </MaxWidthWrapper>
-    </Suspense>
+      )}
+
+      <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
+        <DialogContent className="max-w-4xl h-[80vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle>Enlarged Content</DialogTitle>
+            <DialogDescription>Scroll to see more.</DialogDescription>
+          </DialogHeader>
+          <div className="flex-grow overflow-auto p-4">
+            {modalContent}
+          </div>
+        </DialogContent>
+      </Dialog>
+      {!isEditing && <ChatBubble docId={doc.data.id} />}
+    </MaxWidthWrapper>
   );
+}
+
+// Action function to handle saving the markdown
+export async function action({ request, params }: ActionFunctionArgs) {
+  const user = await getUserFromSession(request);
+  if (!user) {
+    return redirect('/login'); // Or handle unauthorized access appropriately
+  }
+  
+  if (!user.group_name) {
+    return json({ error: 'User group not found, cannot save document.' }, { status: 403 });
+  }
+
+  const formData = await request.formData();
+  const markdownContent = formData.get('markdownContent') as string; // This will be from MDEditor
+  const docId = formData.get('docId') as string;
+  const filename = formData.get('filename') as string; // We'll use filename directly if docId is not filename
+  const intent = formData.get('_action');
+
+  if (intent !== 'saveMarkdown') {
+    return json({ error: 'Invalid action' }, { status: 400 });
+  }
+
+  if (!markdownContent || typeof markdownContent !== 'string') {
+    return json({ error: 'Markdown content is missing or invalid.' }, { status: 400 });
+  }
+  if (!docId) {
+    return json({ error: 'Document ID is missing.' }, { status: 400 });
+  }
+   if (!filename) {
+    return json({ error: 'Filename is missing.' }, { status: 400 });
+  }
+
+
+  // Construct the full path to the document
+  // Using /chatfront/data as specified by the user
+  const docsDir = path.join('/chatfront/data', user.group_name, 'srsdocs');
+  const filePath = path.join(docsDir, filename); // Assuming filename is passed and is correct
+
+  try {
+    // Read the existing file to preserve frontmatter
+    const existingFileContent = await fs.readFile(filePath, 'utf-8');
+    const { data: frontmatter } = matter(existingFileContent);
+
+    // Create the new content with original frontmatter and new markdown body
+    const newFileContent = matter.stringify(markdownContent, frontmatter);
+
+    await fs.writeFile(filePath, newFileContent, 'utf-8');
+    
+    // Successfully saved, potentially redirect or return success
+    // To refresh the page with new content, you might revalidate data or redirect
+    // For now, just return success. A redirect to the same page forces a loader re-run.
+    return redirect(`/srsdoc/${docId}`, {
+      headers: {
+        'Cache-Control': 'no-cache', // Ensure fresh data is loaded
+      }
+    });
+
+  } catch (error: any) {
+    console.error('Failed to save SRS document:', error);
+    return json({ error: `Failed to save document: ${error.message || 'Unknown error'}` }, { status: 500 });
+  }
 } 

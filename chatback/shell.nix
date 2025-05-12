@@ -67,6 +67,8 @@ pkgs.mkShell {
     git
     podman
     docker-compose
+    nix-tree
+    nix
     
     # Node.js (for frontend)
     nodejs_20
