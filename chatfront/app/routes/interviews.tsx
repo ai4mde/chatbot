@@ -89,16 +89,16 @@ function InterviewCard({ id, title, description, date }: { id: string; title: st
     <div className='rounded-lg border bg-card text-card-foreground shadow-sm hover:shadow-md transition-shadow'>
       <div className='p-6'>
         <h3 className='text-2xl font-semibold leading-none tracking-tight mb-2'>
-          {title}
+            {title}
         </h3>
         {/* <p className='text-sm text-muted-foreground mb-4'>
           {description}
         </p> */}
-        {date && (
+          {date && (
           <p className='text-xs text-muted-foreground mb-4'>
-            {new Date(date).toLocaleDateString()}
+              {new Date(date).toLocaleDateString()}
           </p>
-        )}
+          )}
         <Button asChild>
           <Link to={`/interview/${id}`}>Read More</Link>
         </Button>

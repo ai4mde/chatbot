@@ -2,11 +2,12 @@ from pydantic_settings import BaseSettings
 from typing import Optional
 import os
 from .path_utils import sanitize_path_component, validate_path, ensure_path
+from .version import __version__ as APP_VERSION
 
 
 class Settings(BaseSettings):
     PROJECT_NAME: str = "ChatBack API"
-    VERSION: str = "1.0.0"
+    VERSION: str = APP_VERSION
     API_V1_STR: str = "/api/v1"
 
     # Database settings

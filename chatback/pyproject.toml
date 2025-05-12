@@ -7,7 +7,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "chatback"
-version = "0.6.1"
+version = "0.7.0"
 description = "Backend API for the chat application"
 requires-python = ">=3.13"
 dependencies = [
@@ -50,6 +50,7 @@ dependencies = [
     "pytz>=2025.2",
     "requests>=2.32.3",
     "Jinja2>=3.1.6",
+    "python-frontmatter>=1.1.0",
 ]
 
 [project.optional-dependencies]
